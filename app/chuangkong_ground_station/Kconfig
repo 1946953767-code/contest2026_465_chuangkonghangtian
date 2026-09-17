@@ -1,0 +1,17 @@
+config EXAMPLES_UART2HWTEST
+	bool "UART2 hardware test"
+	default n
+	---help---
+		Direct UART2 hardware test bypassing NuttX serial driver.
+
+if EXAMPLES_UART2HWTEST
+
+config EXAMPLES_UART2HWTEST_PRIORITY
+	int "UART2 hw test priority"
+	default 100
+
+config EXAMPLES_UART2HWTEST_STACKSIZE
+	int "UART2 hw test stack size"
+	default 2048
+
+endif

@@ -1,0 +1,17 @@
+config EXAMPLES_TOUCH_DEMO
+	bool "Touch screen demo"
+	default n
+	---help---
+		Reads /dev/input0 and prints touch coordinates.
+
+if EXAMPLES_TOUCH_DEMO
+
+config EXAMPLES_TOUCH_DEMO_PRIORITY
+	int "Touch demo priority"
+	default 100
+
+config EXAMPLES_TOUCH_DEMO_STACKSIZE
+	int "Touch demo stack size"
+	default 4096
+
+endif

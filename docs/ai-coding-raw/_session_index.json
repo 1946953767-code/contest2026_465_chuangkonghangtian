@@ -1,0 +1,1022 @@
+[
+  {
+    "id": "session-5827a966-72cc-4b06-aee0-038a1ffed337",
+    "title": "会话交接_触摸屏测试.md桌面去",
+    "createdAt": "1788773172227",
+    "mtime": "2026-09-15T16:46",
+    "zstdBytes": 30701111,
+    "expandedBytes": 72948267,
+    "exportedBytes": 5984656,
+    "users": 363,
+    "assistants": 2357,
+    "toolCalls": 3488,
+    "toolResults": 3511,
+    "truncatedItems": 1632,
+    "included": true,
+    "note": "遥测/雷达/网页大屏 + SD 驱动与 RGB",
+    "topTools": [
+      [
+        "pwsh",
+        1789
+      ],
+      [
+        "edit",
+        718
+      ],
+      [
+        "read",
+        360
+      ],
+      [
+        "write",
+        266
+      ],
+      [
+        "grep",
+        95
+      ],
+      [
+        "job_output",
+        56
+      ],
+      [
+        "job_kill",
+        42
+      ],
+      [
+        "get_goal",
+        37
+      ]
+    ]
+  },
+  {
+    "id": "session-03d0b494-04de-4bff-84d6-f4ee466e8a49",
+    "title": "【项目背景】 - 参加 openvela AI",
+    "createdAt": "1788342449349",
+    "mtime": "2026-09-14T14:52",
+    "zstdBytes": 20405016,
+    "expandedBytes": 42156401,
+    "exportedBytes": 2926419,
+    "users": 520,
+    "assistants": 1527,
+    "toolCalls": 1423,
+    "toolResults": 1441,
+    "truncatedItems": 837,
+    "included": true,
+    "note": "地面站固件主体开发",
+    "topTools": [
+      [
+        "pwsh",
+        401
+      ],
+      [
+        "job_output",
+        198
+      ],
+      [
+        "read",
+        180
+      ],
+      [
+        "grep",
+        161
+      ],
+      [
+        "web_search",
+        149
+      ],
+      [
+        "write",
+        117
+      ],
+      [
+        "edit",
+        66
+      ],
+      [
+        "job_kill",
+        48
+      ]
+    ]
+  },
+  {
+    "id": "session-2703602a-9e23-4573-a761-39b99ff21934",
+    "title": "ESP32S3传感器通孔小型板设计",
+    "createdAt": "1787512086716",
+    "mtime": "2026-08-24T11:03",
+    "zstdBytes": 7691234,
+    "expandedBytes": 15362153,
+    "exportedBytes": 1097378,
+    "users": 89,
+    "assistants": 348,
+    "toolCalls": 481,
+    "toolResults": 485,
+    "truncatedItems": 334,
+    "included": true,
+    "note": "ESP32-S3 传感器底板设计",
+    "topTools": [
+      [
+        "pwsh",
+        343
+      ],
+      [
+        "edit",
+        51
+      ],
+      [
+        "write",
+        43
+      ],
+      [
+        "web_search",
+        14
+      ],
+      [
+        "job_output",
+        11
+      ],
+      [
+        "todo_write",
+        6
+      ],
+      [
+        "read",
+        4
+      ],
+      [
+        "get_goal",
+        3
+      ]
+    ]
+  },
+  {
+    "id": "session-e23b1704-3e9a-48ed-a302-ebfd8c766c0d",
+    "title": "搭建dev-ai-contest-2026开发环境",
+    "createdAt": "1787758557703",
+    "mtime": "2026-09-13T04:14",
+    "zstdBytes": 6417369,
+    "expandedBytes": 12722971,
+    "exportedBytes": 1549914,
+    "users": 328,
+    "assistants": 398,
+    "toolCalls": 145,
+    "toolResults": 145,
+    "truncatedItems": 235,
+    "included": true,
+    "note": "开发环境搭建 + 板级驱动",
+    "topTools": [
+      [
+        "write",
+        57
+      ],
+      [
+        "pwsh",
+        35
+      ],
+      [
+        "web_search",
+        21
+      ],
+      [
+        "skill",
+        10
+      ],
+      [
+        "glob",
+        9
+      ],
+      [
+        "update_goal",
+        5
+      ],
+      [
+        "get_goal",
+        3
+      ],
+      [
+        "create_goal",
+        1
+      ]
+    ]
+  },
+  {
+    "id": "session-21ba56e7-e866-4778-a3e2-5748f0b5311c",
+    "title": "安装Codex技能并配置EDA桥接 გარემ境",
+    "createdAt": "1787592724271",
+    "mtime": "2026-08-26T16:59",
+    "zstdBytes": 2733575,
+    "expandedBytes": 8368008,
+    "exportedBytes": 1370723,
+    "users": 80,
+    "assistants": 60,
+    "toolCalls": 681,
+    "toolResults": 710,
+    "truncatedItems": 207,
+    "included": true,
+    "note": "EDA 桥接与工具链配置",
+    "topTools": [
+      [
+        "pwsh",
+        346
+      ],
+      [
+        "read",
+        93
+      ],
+      [
+        "write",
+        66
+      ],
+      [
+        "todo_write",
+        59
+      ],
+      [
+        "job_output",
+        20
+      ],
+      [
+        "update_goal",
+        19
+      ],
+      [
+        "glob",
+        14
+      ],
+      [
+        "grep",
+        13
+      ]
+    ]
+  },
+  {
+    "id": "session-e4aa8bbe-a777-492e-98a2-9dd35bd7b6df",
+    "title": "清理桌面遗留的代码文件",
+    "createdAt": "1789273001628",
+    "mtime": "2026-09-13T04:37",
+    "zstdBytes": 1074330,
+    "expandedBytes": 2863729,
+    "exportedBytes": 327605,
+    "users": 4,
+    "assistants": 72,
+    "toolCalls": 151,
+    "toolResults": 151,
+    "truncatedItems": 101,
+    "included": true,
+    "note": "桌面代码整理与交接",
+    "topTools": [
+      [
+        "read",
+        65
+      ],
+      [
+        "pwsh",
+        57
+      ],
+      [
+        "write",
+        17
+      ],
+      [
+        "edit",
+        5
+      ],
+      [
+        "grep",
+        4
+      ],
+      [
+        "ask_user_question",
+        2
+      ],
+      [
+        "skill",
+        1
+      ]
+    ]
+  },
+  {
+    "id": "821e9506-15bb-49f9-9d04-090e174e5ddd",
+    "title": "你在调试 SF32LB52 开发板触摸屏",
+    "createdAt": "1788865346685",
+    "mtime": "2026-09-08T11:14",
+    "zstdBytes": 365127,
+    "expandedBytes": 871599,
+    "exportedBytes": 82984,
+    "users": 3,
+    "assistants": 20,
+    "toolCalls": 54,
+    "toolResults": 54,
+    "truncatedItems": 21,
+    "included": true,
+    "note": "SF32LB52 触摸屏调试",
+    "topTools": [
+      [
+        "glob",
+        30
+      ],
+      [
+        "pwsh",
+        16
+      ],
+      [
+        "read",
+        6
+      ],
+      [
+        "skill",
+        1
+      ],
+      [
+        "report",
+        1
+      ]
+    ]
+  },
+  {
+    "id": "0c100b21-6dc7-443f-a913-9adb793f0b06",
+    "title": "In the openvela/NuttX tree, determine",
+    "createdAt": "1788936900300",
+    "mtime": "2026-09-09T07:05",
+    "zstdBytes": 203246,
+    "expandedBytes": 502271,
+    "exportedBytes": 89806,
+    "users": 3,
+    "assistants": 42,
+    "toolCalls": 43,
+    "toolResults": 43,
+    "truncatedItems": 3,
+    "included": true,
+    "note": "openvela/NuttX 串口设备确定",
+    "topTools": [
+      [
+        "web_search",
+        37
+      ],
+      [
+        "glob",
+        3
+      ],
+      [
+        "pwsh",
+        3
+      ]
+    ]
+  },
+  {
+    "id": "de9d87bb-5e73-4b15-837c-d7e5029f7f2e",
+    "title": "Review the current task context",
+    "createdAt": "1788936859301",
+    "mtime": "2026-09-09T06:55",
+    "zstdBytes": 103456,
+    "expandedBytes": 248758,
+    "exportedBytes": 29936,
+    "users": 3,
+    "assistants": 10,
+    "toolCalls": 20,
+    "toolResults": 20,
+    "truncatedItems": 7,
+    "included": true,
+    "note": "任务上下文复核",
+    "topTools": [
+      [
+        "read",
+        10
+      ],
+      [
+        "glob",
+        6
+      ],
+      [
+        "grep",
+        2
+      ],
+      [
+        "pwsh",
+        1
+      ],
+      [
+        "report",
+        1
+      ]
+    ]
+  },
+  {
+    "id": "session-d86bf393-c541-4edb-b5df-575745eecc65",
+    "title": "ESP32S3无源蜂鸣器测试",
+    "createdAt": "1787426954030",
+    "mtime": "2026-08-28T13:12",
+    "zstdBytes": 89056,
+    "expandedBytes": 146538,
+    "exportedBytes": 14037,
+    "users": 7,
+    "assistants": 5,
+    "toolCalls": 2,
+    "toolResults": 2,
+    "truncatedItems": 1,
+    "included": true,
+    "note": "ESP32-S3 无源蜂鸣器测试",
+    "topTools": [
+      [
+        "skill",
+        1
+      ],
+      [
+        "web_search",
+        1
+      ]
+    ]
+  },
+  {
+    "id": "session-fe991a78-619f-4810-bc66-da67c3f1ce97",
+    "title": "esp32因为连接的oled短接之后重",
+    "createdAt": "1787852014875",
+    "mtime": "2026-08-31T12:10",
+    "zstdBytes": 52074,
+    "expandedBytes": 86811,
+    "exportedBytes": 8808,
+    "users": 4,
+    "assistants": 3,
+    "toolCalls": 1,
+    "toolResults": 1,
+    "truncatedItems": 1,
+    "included": true,
+    "note": "ESP32 OLED 短接后恢复",
+    "topTools": [
+      [
+        "skill",
+        1
+      ]
+    ]
+  },
+  {
+    "id": "f861037d-e47c-44b1-b5fa-21362c3402bb",
+    "title": "安装Codex技能并配置EDA桥接 გარემ境",
+    "createdAt": "1787744909430",
+    "mtime": "2026-08-26T11:49",
+    "zstdBytes": 797579,
+    "expandedBytes": 6339680,
+    "exportedBytes": 1111133,
+    "users": 61,
+    "assistants": 44,
+    "toolCalls": 549,
+    "toolResults": 578,
+    "truncatedItems": 180,
+    "included": false,
+    "note": "与 21ba56e7 重复的并行会话，去重",
+    "topTools": [
+      [
+        "pwsh",
+        280
+      ],
+      [
+        "read",
+        74
+      ],
+      [
+        "write",
+        61
+      ],
+      [
+        "todo_write",
+        54
+      ],
+      [
+        "job_output",
+        20
+      ],
+      [
+        "glob",
+        16
+      ],
+      [
+        "ask_user_question",
+        10
+      ],
+      [
+        "web_search",
+        10
+      ]
+    ]
+  },
+  {
+    "id": "44336f7b-6725-4f57-9da3-ac7e1ac3dcf8",
+    "title": "安装Codex技能并配置EDA桥接 გარემ境",
+    "createdAt": "1787744903104",
+    "mtime": "2026-08-26T11:48",
+    "zstdBytes": 796659,
+    "expandedBytes": 6285184,
+    "exportedBytes": 1103046,
+    "users": 61,
+    "assistants": 44,
+    "toolCalls": 546,
+    "toolResults": 575,
+    "truncatedItems": 178,
+    "included": false,
+    "note": "与 21ba56e7 重复的并行会话，去重",
+    "topTools": [
+      [
+        "pwsh",
+        279
+      ],
+      [
+        "read",
+        78
+      ],
+      [
+        "write",
+        61
+      ],
+      [
+        "todo_write",
+        54
+      ],
+      [
+        "job_output",
+        20
+      ],
+      [
+        "glob",
+        12
+      ],
+      [
+        "ask_user_question",
+        10
+      ],
+      [
+        "web_search",
+        10
+      ]
+    ]
+  },
+  {
+    "id": "session-d9aa6fdb-5cab-42a1-91aa-ce8b93431587",
+    "title": "你好",
+    "createdAt": "1787424844797",
+    "mtime": "2026-09-13T04:14",
+    "zstdBytes": 1240109,
+    "expandedBytes": 2412784,
+    "exportedBytes": 217000,
+    "users": 44,
+    "assistants": 136,
+    "toolCalls": 107,
+    "toolResults": 107,
+    "truncatedItems": 51,
+    "included": false,
+    "note": "闲聊，无作品内容",
+    "topTools": [
+      [
+        "pwsh",
+        52
+      ],
+      [
+        "edit",
+        12
+      ],
+      [
+        "job_output",
+        12
+      ],
+      [
+        "read",
+        9
+      ],
+      [
+        "web_search",
+        8
+      ],
+      [
+        "job_kill",
+        7
+      ],
+      [
+        "write",
+        3
+      ],
+      [
+        "glob",
+        2
+      ]
+    ]
+  },
+  {
+    "id": "session-9623475a-97dd-47e3-a572-ae2643365bd7",
+    "title": "手机网页打开方法",
+    "createdAt": "1787569078784",
+    "mtime": "2026-08-24T17:46",
+    "zstdBytes": 578934,
+    "expandedBytes": 1415376,
+    "exportedBytes": 139772,
+    "users": 15,
+    "assistants": 32,
+    "toolCalls": 85,
+    "toolResults": 84,
+    "truncatedItems": 21,
+    "included": false,
+    "note": "手机网页打开方法，非本项目",
+    "topTools": [
+      [
+        "read",
+        23
+      ],
+      [
+        "pwsh",
+        17
+      ],
+      [
+        "edit",
+        12
+      ],
+      [
+        "grep",
+        9
+      ],
+      [
+        "todo_write",
+        8
+      ],
+      [
+        "write",
+        7
+      ],
+      [
+        "glob",
+        7
+      ],
+      [
+        "skill",
+        1
+      ]
+    ]
+  },
+  {
+    "id": "ba982758-7237-46ab-8aba-9c5891c18642",
+    "title": "Design a robust SolidWorks 2021",
+    "createdAt": "1787423069906",
+    "mtime": "2026-08-22T18:31",
+    "zstdBytes": 442710,
+    "expandedBytes": 934832,
+    "exportedBytes": 39141,
+    "users": 2,
+    "assistants": 12,
+    "toolCalls": 15,
+    "toolResults": 15,
+    "truncatedItems": 13,
+    "included": false,
+    "note": "SolidWorks 机械建模，与作品无关",
+    "topTools": [
+      [
+        "web_search",
+        9
+      ],
+      [
+        "pwsh",
+        6
+      ]
+    ]
+  },
+  {
+    "id": "bfbe1bea-0360-4cc1-8d11-8c0960f63a5f",
+    "title": "We need create a non-functional,",
+    "createdAt": "1787424416954",
+    "mtime": "2026-08-22T18:51",
+    "zstdBytes": 396386,
+    "expandedBytes": 895849,
+    "exportedBytes": 15578,
+    "users": 2,
+    "assistants": 2,
+    "toolCalls": 1,
+    "toolResults": 1,
+    "truncatedItems": 2,
+    "included": false,
+    "note": "SolidWorks 机械建模，与作品无关",
+    "topTools": [
+      [
+        "report",
+        1
+      ]
+    ]
+  },
+  {
+    "id": "3d9f5f69-525e-4520-88bc-dc2ec2d6b6ea",
+    "title": "Determine a reliable SolidWorks 2021",
+    "createdAt": "1787423069904",
+    "mtime": "2026-08-22T18:31",
+    "zstdBytes": 370677,
+    "expandedBytes": 871373,
+    "exportedBytes": 29068,
+    "users": 2,
+    "assistants": 10,
+    "toolCalls": 10,
+    "toolResults": 10,
+    "truncatedItems": 5,
+    "included": false,
+    "note": "SolidWorks 机械建模，与作品无关",
+    "topTools": [
+      [
+        "web_search",
+        6
+      ],
+      [
+        "pwsh",
+        4
+      ]
+    ]
+  },
+  {
+    "id": "session-5d9435b6-efe2-4bcb-9e12-e7f184e4acba",
+    "title": "11",
+    "createdAt": "1787419988248",
+    "mtime": "2026-08-22T18:58",
+    "zstdBytes": 347110,
+    "expandedBytes": 759949,
+    "exportedBytes": 92437,
+    "users": 13,
+    "assistants": 6,
+    "toolCalls": 53,
+    "toolResults": 53,
+    "truncatedItems": 6,
+    "included": false,
+    "note": "标题「11」，无作品内容",
+    "topTools": [
+      [
+        "pwsh",
+        16
+      ],
+      [
+        "web_search",
+        10
+      ],
+      [
+        "read",
+        8
+      ],
+      [
+        "todo_write",
+        4
+      ],
+      [
+        "subagent",
+        4
+      ],
+      [
+        "edit",
+        4
+      ],
+      [
+        "write",
+        3
+      ],
+      [
+        "glob",
+        2
+      ]
+    ]
+  },
+  {
+    "id": "abdbb6d6-1586-4642-8295-4ca2a6e06cb0",
+    "title": "Provide a reliable SolidWorks 2021",
+    "createdAt": "1787424416957",
+    "mtime": "2026-08-22T18:50",
+    "zstdBytes": 337756,
+    "expandedBytes": 754241,
+    "exportedBytes": 16137,
+    "users": 2,
+    "assistants": 2,
+    "toolCalls": 1,
+    "toolResults": 1,
+    "truncatedItems": 2,
+    "included": false,
+    "note": "SolidWorks 机械建模，与作品无关",
+    "topTools": [
+      [
+        "web_search",
+        1
+      ]
+    ]
+  },
+  {
+    "id": "session-e26f2fda-f573-4ccf-a5d6-f8fa30e4d70c",
+    "title": "帮我制作一个华为产品介绍的",
+    "createdAt": "1787851720423",
+    "mtime": "2026-09-04T10:13",
+    "zstdBytes": 219344,
+    "expandedBytes": 467020,
+    "exportedBytes": 11688,
+    "users": 4,
+    "assistants": 8,
+    "toolCalls": 6,
+    "toolResults": 6,
+    "truncatedItems": 4,
+    "included": false,
+    "note": "华为产品介绍，无关",
+    "topTools": [
+      [
+        "pwsh",
+        3
+      ],
+      [
+        "write",
+        3
+      ]
+    ]
+  },
+  {
+    "id": "session-bf36c058-f291-49b2-bc1d-4e98a8bd79c6",
+    "title": "mimo-v2.5-pro、mimo-v2.5、mimo-v2.5-as",
+    "createdAt": "1787851245526",
+    "mtime": "2026-08-27T17:26",
+    "zstdBytes": 80760,
+    "expandedBytes": 176301,
+    "exportedBytes": 20295,
+    "users": 5,
+    "assistants": 11,
+    "toolCalls": 9,
+    "toolResults": 9,
+    "truncatedItems": 0,
+    "included": false,
+    "note": "模型选型咨询，非本项目",
+    "topTools": [
+      [
+        "web_search",
+        9
+      ]
+    ]
+  },
+  {
+    "id": "session-75af61f0-0ce6-4964-9342-0439a4062ffe",
+    "title": "对团委的认识了解，应聘书",
+    "createdAt": "1788687971941",
+    "mtime": "2026-09-06T10:21",
+    "zstdBytes": 79945,
+    "expandedBytes": 110405,
+    "exportedBytes": 9254,
+    "users": 6,
+    "assistants": 5,
+    "toolCalls": 1,
+    "toolResults": 1,
+    "truncatedItems": 2,
+    "included": false,
+    "note": "团委应聘书，无关",
+    "topTools": [
+      [
+        "skill",
+        1
+      ]
+    ]
+  },
+  {
+    "id": "session-6842d226-17aa-453b-b09c-6405c42d259c",
+    "title": "1111",
+    "createdAt": "1788398004993",
+    "mtime": "2026-09-13T04:14",
+    "zstdBytes": 44276,
+    "expandedBytes": 103059,
+    "exportedBytes": 6303,
+    "users": 4,
+    "assistants": 3,
+    "toolCalls": 1,
+    "toolResults": 1,
+    "truncatedItems": 2,
+    "included": false,
+    "note": "标题「1111」，无关",
+    "topTools": [
+      [
+        "skill",
+        1
+      ]
+    ]
+  },
+  {
+    "id": "session-d6191239-9c52-4869-a056-33596a7c2e9c",
+    "title": "入党申请书去除AI味写法",
+    "createdAt": "1789274263244",
+    "mtime": "2026-09-13T04:43",
+    "zstdBytes": 55166,
+    "expandedBytes": 94153,
+    "exportedBytes": 7757,
+    "users": 3,
+    "assistants": 2,
+    "toolCalls": 1,
+    "toolResults": 1,
+    "truncatedItems": 3,
+    "included": false,
+    "note": "入党申请书，无关",
+    "topTools": [
+      [
+        "skill",
+        1
+      ]
+    ]
+  },
+  {
+    "id": "session-efd68f95-49b1-4c3e-9957-a0ecd2819bf1",
+    "title": "164身高125体重体型怎么样的",
+    "createdAt": "1788400352970",
+    "mtime": "2026-09-05T09:21",
+    "zstdBytes": 46335,
+    "expandedBytes": 83359,
+    "exportedBytes": 7363,
+    "users": 4,
+    "assistants": 3,
+    "toolCalls": 1,
+    "toolResults": 1,
+    "truncatedItems": 2,
+    "included": false,
+    "note": "身高体重咨询，无关",
+    "topTools": [
+      [
+        "skill",
+        1
+      ]
+    ]
+  },
+  {
+    "id": "session-6795b5c4-8cb7-4dcd-a8c3-a63cf24dfea3",
+    "title": "姓 名 陈政嘉 性 别",
+    "createdAt": "1789116078828",
+    "mtime": "2026-09-13T04:14",
+    "zstdBytes": 40928,
+    "expandedBytes": 78400,
+    "exportedBytes": 6499,
+    "users": 3,
+    "assistants": 2,
+    "toolCalls": 1,
+    "toolResults": 1,
+    "truncatedItems": 2,
+    "included": false,
+    "note": "个人信息表，无关",
+    "topTools": [
+      [
+        "skill",
+        1
+      ]
+    ]
+  },
+  {
+    "id": "session-0c3f64f7-e062-498c-91b0-79a3c76ccbb5",
+    "title": "GitHub无法访问怎么办",
+    "createdAt": "1787823448878",
+    "mtime": "2026-08-27T09:51",
+    "zstdBytes": 34805,
+    "expandedBytes": 68012,
+    "exportedBytes": 6196,
+    "users": 4,
+    "assistants": 2,
+    "toolCalls": 1,
+    "toolResults": 1,
+    "truncatedItems": 1,
+    "included": false,
+    "note": "GitHub 访问问题，无关",
+    "topTools": [
+      [
+        "skill",
+        1
+      ]
+    ]
+  },
+  {
+    "id": "session-663f55fc-9f6e-430b-8cbf-b56dfe7f14d2",
+    "title": "当前dsh版本",
+    "createdAt": "1787423208880",
+    "mtime": "2026-08-22T18:31",
+    "zstdBytes": 28392,
+    "expandedBytes": 67195,
+    "exportedBytes": 8328,
+    "users": 2,
+    "assistants": 4,
+    "toolCalls": 5,
+    "toolResults": 5,
+    "truncatedItems": 0,
+    "included": false,
+    "note": "只问 dsh 版本，无作品内容",
+    "topTools": [
+      [
+        "pwsh",
+        5
+      ]
+    ]
+  },
+  {
+    "id": "session-0ce7237f-d7a1-452d-89a0-8238ab9752df",
+    "title": "https://api-docs.deepseek.com/zh-cn/quic",
+    "createdAt": "1789027070135",
+    "mtime": "2026-09-13T04:14",
+    "zstdBytes": 22459,
+    "expandedBytes": 52306,
+    "exportedBytes": 4687,
+    "users": 4,
+    "assistants": 0,
+    "toolCalls": 1,
+    "toolResults": 1,
+    "truncatedItems": 1,
+    "included": false,
+    "note": "DeepSeek API 文档，无关",
+    "topTools": [
+      [
+        "skill",
+        1
+      ]
+    ]
+  }
+]

@@ -1,36 +1,72 @@
-# contest2026_465_chuangkonghangtian
+# 创空航天 · 火箭遥测与地面站系统
 
-👋 欢迎参加 **2026 首届 openvela AI 硬件开发者大赛**！
+> 2026 首届 openvela AI 硬件开发者大赛 ｜ 队伍编号 **465** ｜ 队伍名称 **创空航天**
 
-这是组委会为你的队伍创建的**专属参赛仓库**（本仓为样例/模板，队伍编号 `465`；你看到的将是你自己的 `contest2026_<编号>_<队伍名>`）。比赛期间，你的全部参赛代码、打包产物与 AI Coding 日志都提交到这里。
+## 一、作品简介
 
-> 本仓既是「代码仓」，又内置了一键拉取整套 openvela 工程的 `repo` 清单（manifest）。你只需跟它打交道，**自始至终只动一个文件夹**。
+本作品是一套**自研探空火箭的两端遥测系统**：箭载端用 **ESP32-S3**（MicroPython）
+采集 GPS、气压温度、六轴姿态、并写入 MicroSD 卡；数据经 **LoRa** 下传到地面端；
+地面端用 **思澈 SF32LB52（openvela / NuttX）** 驱动 390×450 AMOLED 屏，
+实时显示定位、时间、姿态、速度、高度与六页曲线，并用触摸翻页、按键发令、
+蜂鸣器回执，同时把遥测数据推送到浏览器里的网页遥测大屏。
 
----
+**要解决的问题**：探空火箭在发射到回收的几分钟里，需要一份**不丢包、可回放**的
+飞行数据，以及一个**现场就能读懂状态**的地面指挥界面。
 
-## 一、先读这些官方文档
+**亮点**：
 
-**通用（所有赛道必读）：**
+- **全端侧，无云依赖**：采集、解算、显示、记录全部在两端 MCU 上完成，断网照常工作。
+- **能"听见"的指令链路**：地面站按键发令（点火 / 灭火 / 结束）时，箭载端蜂鸣器
+  用不同音调与次数回执——现场不看屏幕也知道命令到底传到没传到。
+- **半双工时隙调度**：LoRa 是半双工，本作品把关键指令安排进接收窗口的固定时隙
+  并重复发送 20 次 + ACK 回执，做到关键指令低延迟、不丢包；遥测流则自适应节流，
+  保证不丢包。
+- **真机跑通**：两端均已完成实机联调，SD 卡实测落盘 1523 行 × 18 列 CSV。
 
-| 文档                                                                                                                                     | 用途                                           |
-| ---------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
-| [《大赛总览》](https://github.com/open-vela/docs/blob/dev-ai-contest-2026/zh-cn/contest_2026/contest_overview.md)                        | 赛道、流程、评分、资源，建议先通读             |
-| [《参赛代码提交指南》](https://github.com/open-vela/docs/blob/dev-ai-contest-2026/zh-cn/contest_2026/code_submission_guide.md)           | 仓库获取、提交流程、时间与权限（**以此为准**） |
-| [《AI Coding 日志归集与提交手册》](https://github.com/open-vela/docs/blob/dev-ai-contest-2026/zh-cn/contest_2026/ai_coding_log_guide.md) | 如何导出 AI 对话日志并提交到 `logs/`           |
+## 二、选题方向
 
-**按你的赛道选读（三选一）：**
+**AI 硬件产品创新**。
 
-| 赛道                  | 教程导航                                                                                                                                                 |
-| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 快应用 / 手表应用创新 | [快应用教程导航](https://github.com/open-vela/docs/blob/dev-ai-contest-2026/zh-cn/contest_2026/quickapp/quickapp_guide_index.md)                         |
-| AI 硬件产品创新       | [AI 硬件赛道教程导航](https://github.com/open-vela/docs/blob/dev-ai-contest-2026/zh-cn/contest_2026/ai_hardware/ai_hardware_guide_index.md)              |
-| 新硬件适配            | [新硬件适配赛道教程导航](https://github.com/open-vela/docs/blob/dev-ai-contest-2026/zh-cn/contest_2026/hardware_porting/hardware_porting_guide_index.md) |
+理由：本作品是完整的软硬件自研产品（自绘 PCB 规格、板级驱动适配、双端固件、
+上位机大屏），核心价值在"硬件 + 端侧算法 + 现场可用性"，
+正好落在 AI 硬件产品创新赛道；同时开发全过程由 AI Agent 深度参与（见第五节）。
 
----
+## 三、目录结构
 
-## 二、第一步：拉取完整工程
+```text
+contest2026_465_chuangkonghangtian/
+├── app/chuangkong_ground_station/   地面站应用（思澈 SF32LB52 / openvela）
+│   ├── ground_station.c               应用主体：LoRa 收发 / NMEA 解析 / 姿态高度解算 /
+│   │                                  六页 AMOLED 界面 / 触摸翻页 / 按键状态机 / 蜂鸣器
+│   ├── cn_font.h                      中文点阵字库
+│   └── CMakeLists.txt / Makefile / Make.defs / Kconfig   应用打包文件
+├── board/contest_board/             板级适配
+│   ├── Kconfig / configs / src/       组委会脚手架骨架（保留）
+│   └── delta/                       ★ 本作品的板级改动（相对 vendor/sifli 出厂板级）
+│       ├── bsp_pinmux.c               引脚复用：LoRa(UART2 PA20/PA27)、修好被注释的 KEY1(PA34)、TF 卡、触摸
+│       ├── sf32lb52_buttons.c         /dev/buttons 按键驱动（扩展为双键）
+│       ├── sifli_ap.c                 LCD 面板上电与 framebuffer 初始化重试
+│       ├── sifli_bitbang_i2c.c        触摸 FT6146 的 bit-bang I2C
+│       ├── defconfig                  本作品的 NuttX 配置（实测烧录用）
+│       └── rcS                        开机自启动脚本
+├── hardware/esp32/                  箭载端 ESP32-S3（MicroPython）
+│   ├── main.py                        离线自启动入口
+│   ├── central_tx.py                  主程序：多任务采集 / LoRa 收发 / 蜂鸣器 / RGB / SD 记录
+│   ├── drv.py                         GPS / BME280 / MPU6050 / TFT 驱动
+│   ├── sdcard.py                      修好的 MicroPython SD 卡驱动（见技术报告 3.5）
+│   └── prototype/                     早期传感器与显示验证脚本（保留开发过程）
+├── web/dashboard.html               网页遥测大屏（曲线 + 雷达图 + 状态面板）
+├── skills/esp32-sf32-telemetry/     自建 Skill（AI 开发用，见第五节）
+├── tools/                           构建、烧录、取证、日志导出脚本
+├── evidence/                        真机证据：SD 卡 CSV、串口日志、实物照片、演示视频
+├── docs/                            技术报告、证据说明；ai-coding-raw/ 为 AI 日志原始记录
+├── logs/1946953767-code/            AI Coding 对话日志（组委会要求的结构）
+└── contest2026_465_chuangkonghangtian.xml   本仓 manifest（app / board 的软链映射）
+```
 
-用组委会提供的命令一键拉取「openvela 全量源码 + 你的专属仓」：
+## 四、运行方式
+
+### 4.1 获取工程
 
 ```bash
 repo init -u https://github.com/open-vela/contest2026_465_chuangkonghangtian \
@@ -38,111 +74,112 @@ repo init -u https://github.com/open-vela/contest2026_465_chuangkonghangtian \
 repo sync -c -j8
 ```
 
-同步后，你的整个仓库位于工作区的 `contest2026_465_chuangkonghangtian/`，openvela 全量源码在外层（`nuttx/`、`apps/`、`packages/`、`vendor/` 等）。
+同步后本仓位于工作树 `contest2026_465_chuangkonghangtian/`，
+`app/` 与 `board/` 会按 manifest 里的 `<linkfile>` 软链到
+`packages/demos/` 与 `vendor/openvela/boards/` 对应位置。
 
----
+### 4.2 编译与烧录地面站（思澈 SF32LB52）
 
-## 三、第二步：在哪里写代码
-
-**只在自己的仓目录 `contest2026_465_chuangkonghangtian/` 里开发。** 不同作品形态放在对应子目录，manifest 会通过 `<linkfile>` 把它们**软链**到 openvela 编译树该在的位置——你不用手动 copy：
-
-| 作品形态 | 你的代码放这里             | 系统自动映射到                                 |
-| -------- | -------------------------- | ---------------------------------------------- |
-| 应用     | `app/hello_app/`           | `packages/demos/contest2026_465_hello_app`     |
-| 快应用   | `quickapp/hello_quickapp/` | `packages/apps/contest2026_465_hello_quickapp` |
-| 板级适配 | `board/contest_board/`     | `vendor/openvela/boards/contest2026_465_board` |
-
-> 用不到的形态目录可以删掉；新增作品时按同样规则加子目录，并在 `contest2026_465_chuangkonghangtian.xml` 里补一条 `<linkfile>` 映射即可。**生产仓库（packages/nuttx/vendor 等）零改动。**
-
-建议仓库目录约定（便于评委定位）：
-
-```text
-app/ | quickapp/ | board/   # 你的作品代码
-logs/                       # AI Coding 日志（主动导出后提交，格式见 logs/README.md）
-README.md                   # 作品说明（提交前请改成你自己的，见第六节）
-```
-
-> 仓内附带了一个 `.gitignore.example`，给出了**编译产物**等不需要进仓的文件示例。如需启用，`cp .gitignore.example .gitignore` 后按需增删即可。**注意 `logs/` 下最终导出的 AI Coding 日志必须提交，不要忽略。**
->
-> `logs/` 的目录结构与提交格式见 [logs/README.md](logs/README.md)。
-
----
-
-## 四、第三步：编译与运行
-
-编译/运行步骤随作品形态不同而不同，请参考你所在赛道的教程导航：
-
-- 快应用 / 手表应用：[快应用教程导航](https://github.com/open-vela/docs/blob/dev-ai-contest-2026/zh-cn/contest_2026/quickapp/quickapp_guide_index.md)（含模拟器与开发板部署）。
-- AI 硬件产品创新：[AI 硬件赛道教程导航](https://github.com/open-vela/docs/blob/dev-ai-contest-2026/zh-cn/contest_2026/ai_hardware/ai_hardware_guide_index.md)（环境搭建、编译烧录、Skill 开发）。
-- 新硬件适配：[新硬件适配赛道教程导航](https://github.com/open-vela/docs/blob/dev-ai-contest-2026/zh-cn/contest_2026/hardware_porting/hardware_porting_guide_index.md)（BSP 移植、最小 NSH 基线）。
-
-子目录已通过 manifest 中的 `<linkfile>` 软链进 openvela 编译树，因此构建在 openvela 工作区**根目录**（即你这个仓的上一级）进行。openvela 使用 `build.sh` 作为统一入口，接收一个 **board config 路径**作为参数：
+实测环境为 WSL + Sifli SF32LB52 开发板（外接 LCM 适配板）：
 
 ```bash
-# 进入 openvela 工作区根目录（你的仓的上一级）
-cd ..
+cd <openvela 工作区>
+cp contest2026_465_chuangkonghangtian/app/chuangkong_ground_station/ground_station.c \
+   apps/examples/uart2hwtest/uart2hwtest.c
+cp contest2026_465_chuangkonghangtian/app/chuangkong_ground_station/cn_font.h \
+   apps/examples/uart2hwtest/cn_font.h
 
-# 通用语法：第一个参数是 board config 路径，第二个参数可以是 menuconfig / distclean 等
-./build.sh <board-config-path> [menuconfig|distclean] [-j8]
+cmake --build cmake_out/sf32lb52_devkit_lcd
+cp cmake_out/sf32lb52_devkit_lcd/nuttx.bin .
 ```
 
-> 具体的 board config 路径、目标产物、模拟器/真机部署方式请以你所在赛道的教程导航为准。本仓 `app/` `quickapp/` `board/` 三个示例骨架对应的 Kconfig 选项可通过 `menuconfig` 启用。
+烧录（`ftab.bin` 为分区表，两者一起写）：
 
----
+```bash
+sftool.exe --chip SF32LB52 -p COM9 --connect-attempts 40 \
+  write_flash ftab.bin@0x12000000 nuttx.bin@0x12010000
+```
 
-## 五、第四步：提交作品
+> 注意：串口工具打开 COM9 后必须显式拉低 RTS/DTR，否则 SoC 会被压在复位状态，
+> 表现为屏幕不亮、`ERR fb0`。烧录前请先关闭占用串口的程序。
 
-1. **fork** 你的专属仓 → 开发 → `git commit` 并推送 → 向专属仓发起 **Pull Request**，可**自行 review 并合入**（无需等组委会）。
-2. **AI Coding 日志**：与 AI 工具的对话会自动记录到本机 staging（不会自动上传），需你**主动导出/打包**选定会话到仓内 `logs/` 目录后一并提交。详见[《AI Coding 日志归集与提交手册》](https://github.com/open-vela/docs/blob/dev-ai-contest-2026/zh-cn/contest_2026/ai_coding_log_guide.md)。
-3. 若需改动 **nuttx 等公共仓库**，不在本仓改，而是 fork 对应公共仓、以 PR 提交到 `dev-ai-contest-2026` 分支，由组委会 review 后合入。
+### 4.3 烧录箭载端（ESP32-S3）
 
-> ⏰ **提交作品截止：9 月 20 日**。截止后统一收回 push 权限，仍可查看 / clone。
->
-> 获奖后再按要求将作品 PR 至 openvela 上游对应仓库（走标准 PR + CI 流程）。
+```bash
+mpremote connect COM7 cp hardware/esp32/main.py       :main.py
+mpremote connect COM7 cp hardware/esp32/central_tx.py :central_tx.py
+mpremote connect COM7 cp hardware/esp32/drv.py        :drv.py
+mpremote connect COM7 cp hardware/esp32/sdcard.py     :sdcard.py
+```
 
-### 关于 PR 与 CLA
+`main.py` 为离线自启动入口，重新上电即自动运行，无需电脑。
 
-- 本仓所有改动通过 **Pull Request** 合入（分支保护强制，可自行合入自己的 PR）。
-- 首次贡献需在[**官网签署 CLA**](https://openvela.com/#/community/cla)；PR 上会自动跑 `cla/signature` 检查，在官网签署成功后，在 PR 评论 `/check-cla` 复检即可通过。
+**接线（已实测验证）**：
 
----
+| 功能 | 引脚 |
+|---|---|
+| LoRa（UART1） | TX=17 RX=18 |
+| GPS（UART2） | TX=39 RX=38 |
+| TF 卡（SoftSPI） | CS=14 SCK=21 MOSI=47 MISO=4 |
+| TFT（SPI2） | SCK=12 MOSI=11 CS=7 DC=46 RST=10 BL=5 |
+| 蜂鸣器（无源，PWM） | BUZZ=35 |
+| MPU6050（SoftI2C） | SCL=9 SDA=3 |
+| BME280 / BMP280（SoftI2C） | SCL=1 SDA=2 |
+| 板载 RGB（NeoPixel） | 48 |
 
-## 六、提交前：把本 README 改成你的作品说明
+> TF 卡必须使用 `machine.SoftSPI`：TFT 已占用硬件 SPI2，共用会使 LCD 花屏或卡死在开机画面。
+> 另外 GPIO48 是板载 WS2812 的数据脚，MISO 不要接到 48——会污染 SPI 数据线。
 
-本文件目前是组委会给的**使用说明书**。**作品提交前，请把它替换成你自己作品的说明**，方便评委快速了解你做了什么、怎么跑起来。建议至少包含以下内容：
+### 4.4 网页遥测大屏
 
-```markdown
-# <你的作品名>
+直接双击 `web/dashboard.html` 用浏览器打开，按页面提示选择串口设备即可。
+曲线与雷达图在浏览器本地渲染，不依赖外网。
 
-## 一、作品简介
-<一句话/一段话说明这个作品是什么、解决什么问题、亮点在哪>
+### 4.5 操作流程（现场）
 
-## 二、选题方向
-<快应用 / 手表应用创新 ｜ AI 硬件产品创新 ｜ 新硬件适配 ｜ 自定方向，并简述理由>
-
-## 三、目录结构
-<列出你这个仓里各目录/文件的作用，例如：>
-- `app/xxx/`        — <说明>
-- `board/xxx/`      — <说明>
-- `quickapp/xxx/`   — <说明>
-- `logs/`           — AI Coding 日志
-- `docs/` 或其他    — <说明>
-
-## 四、运行方式
-<拉取工程后，如何编译、烧录/部署、运行的完整步骤；最好能让评委照着一步步复现>
+| 操作 | 效果 |
+|---|---|
+| KEY2（待命） | 点火确认：低音长鸣一声（440 Hz） |
+| KEY1（确认后） | 点火：5 声尖锐短鸣（3200 Hz），新建 SD 记录文件，RGB 点亮 |
+| KEY2（飞行中） | 灭火：2 声低沉（300 Hz），RGB 点亮 |
+| KEY1（灭火后） | 任务结束：4 声递降，RGB 熄灭，新建记录文件 |
 
 ## 五、AI Coding 使用说明
-<说明本作品如何借助 AI 辅助开发：
-- 在需求拆解 / 方案设计 / 编码 / 调试 / 文档等环节如何与 AI 协作；
-- AI 对开发效率或质量带来的实际帮助。
-完整对话日志见 logs/ 目录>
-```
 
-> 提示：将会根据「作品本身 + 你的 README 说明 + `logs/` 里的 AI Coding 日志」来理解和评估你的作品，README 写清楚很重要。
+本作品的全部代码、板级驱动适配、真机调试与文档，均由 **DSH（DeepSeek Harness）AI Agent**
+在对话中协作完成。开发方式是"人定需求与验收、AI 读代码改代码编译烧录跑真机"的闭环：
 
----
+| 环节 | AI 的参与方式 |
+|---|---|
+| 需求拆解 | 把"点火要响、命令要低延迟不丢包"这类现场口述需求，拆成可验证的固件行为 |
+| 方案设计 | 半双工时隙调度、自适应落盘节流、加速度积分 + GPS 融合解算高度等方案均由 AI 给出并逐轮迭代 |
+| 编码 | 两端固件、板级驱动、网页大屏、字体生成与日志工具约 7180 行有效代码 |
+| 调试 | 由 AI 直接操作串口与烧录工具读真机日志、看栈回溯、定位硬件故障（典型 11 类问题见技术报告 3.5） |
+| 经验固化 | AI 把踩过的坑自动沉淀成自建 Skill `skills/esp32-sf32-telemetry/`，后续同类任务直接命中 |
+| 文档 | 技术报告、证据整理、本 README 均由 AI 依据原始记录生成 |
 
-## 附：仓库命名规范
+**规模**（详见 `docs/技术报告.docx` 3.6 节）：收录 11 个开发会话，
+7143 次模型调用、6489 次工具调用、1404 条用户提问，累计消耗约 9124 万 token；
+约 95% 的有效代码由 AI 生成并经真机验证。
 
-`contest2026_<编号>_<队伍名>` — 编号三位零填充；队名 slug（全小写、英文/拼音、连字符）。例：`contest2026_465_chuangkonghangtian`。
-（仓库由组委会统一创建，**每队仅一个仓**，无需自行命名。）
+**关于日志工具与本仓 `logs/` 的说明（如实声明）**
+
+本届组委会的日志采集器支持 Claude Code / AIoT-IDE / OpenCode / Codex 四种工具，
+并要求在被采集机器上安装 hook、在 openvela 工作区内工作。本队实际使用的是
+**DSH（DeepSeek Harness）**，不在上述工具列表内，因此**没有采集器产出的原始日志**。
+
+为保证评审可核查，我们做了两件事：
+
+1. `logs/1946953767-code/` 下按组委会要求的结构提交日志
+   （`manifest.json` + `<日期>/<工具名>__<会话id>.jsonl`，`seq` 为会话内递增序号、无断档）。
+   内容由 DSH 会话记录**逐条转换**而来，字段对齐组委会《AI Coding 日志归集与提交手册》
+   第四节（`text` / `thinking` / `tool_name,input,output` / `model` / `seq`）。
+   共 11 个会话、19194 条事件；**对话正文与工具调用原样搬运，未做改写或摘要**，
+   仅过滤了系统自动注入的运行环境提示（`Current runtime context` / `system-reminder`
+   等并非人说的话的块）——过滤掉的条数已逐会话记录在
+   `tools/ai_logs/export_official_logs.js` 的运行输出中。
+   转换脚本本身也在仓库内：`tools/ai_logs/export_official_logs.js`，可重跑复核。
+2. DSH 导出的原始记录（未经转换的 `.jsonl`、可读转录、会话索引与收录/排除理由）
+   一并保留在 `docs/ai-coding-raw/`，可与 `logs/` 内容逐条对照。
+
+我们理解这不等同于官方采集器的产物，评委如需核验，两处记录可以互相印证。

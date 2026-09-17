@@ -5,12 +5,16 @@
     (openvela.xml in this same repo) and adds this team repo as a self-ref
     project, exposing its work-form subdirectories to openvela working-tree
     locations via <linkfile>. remote/default come from the included openvela.xml.
+
+    本队（465 创空航天）只用到两种作品形态：
+      app/chuangkong_ground_station -> packages/demos/contest2026_465_chuangkong_ground_station
+      board/contest_board           -> vendor/openvela/boards/contest2026_465_board
+    组委会脚手架里用不到的 quickapp/ 已删除，对应的 <linkfile> 一并移除。
   -->
   <include name="openvela.xml"/>
 
   <project path="contest2026_465_chuangkonghangtian" name="contest2026_465_chuangkonghangtian">
-    <linkfile src="app/hello_app" dest="packages/demos/contest2026_465_hello_app"/>
-    <linkfile src="quickapp/hello_quickapp" dest="packages/apps/contest2026_465_hello_quickapp"/>
+    <linkfile src="app/chuangkong_ground_station" dest="packages/demos/contest2026_465_chuangkong_ground_station"/>
     <linkfile src="board/contest_board" dest="vendor/openvela/boards/contest2026_465_board"/>
   </project>
 </manifest>

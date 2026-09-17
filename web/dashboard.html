@@ -1,0 +1,998 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>创空航天 · 火箭遥测地面站</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#0a0a1a; color:#fff; font-family:'Segoe UI',Arial,sans-serif; overflow-y:auto; overflow-x:hidden; }
+  #bar { display:flex; align-items:center; padding:8px 16px; background:#0d1b2a;
+         border-bottom:2px solid #1b4965; height:52px; position:sticky; top:0; z-index:10; }
+  #bar h1 { font-size:22px; letter-spacing:3px; color:#00d4ff; }
+  #bar .sub { color:#7a7a9a; font-size:13px; margin-left:14px; }
+  #connBtn { margin-left:auto; padding:8px 22px; font-size:15px; border:none;
+             border-radius:6px; cursor:pointer; font-weight:bold; }
+  #connBtn.dis { background:#444; color:#999; cursor:not-allowed; }
+  #connBtn.on { background:#00cc44; color:#fff; }
+  #connBtn.off { background:#ff4444; color:#fff; }
+  #connBtn.warn { background:#ff9900; color:#000; }
+  #status { display:flex; gap:28px; padding:8px 20px; background:#0d1b2a; font-size:15px; align-items:center; }
+  #loraDot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:6px; }
+  #reads { margin-left:auto; display:flex; gap:36px; }
+  .big { font-size:30px; }
+  .big.green { color:#00ff88; }
+  .lbl { color:#7a7a9a; font-size:12px; display:block; text-align:center; }
+  #grid { display:grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr;
+          gap:8px; padding:8px; height:calc(100vh - 115px); min-height:0; }
+  .panel { background:#0f1f33; border:1px solid #1b4965; border-radius:8px; padding:8px; display:flex;
+           flex-direction:column; min-height:0; overflow:hidden; }
+  .panel h3 { color:#00d4ff; font-size:13px; margin-bottom:4px; flex:none; }
+  .panel canvas { flex:1; width:100%; min-height:0; display:block; }
+  #page2 { padding:8px; min-height:calc(100vh - 115px); }
+  .p2grid { display:grid; grid-template-rows:repeat(5, 240px); gap:8px; padding:8px 8px 16px; }
+  .p2grid .panel.wide { min-height:0; height:240px; }
+  #scrollHint { position:fixed; right:14px; bottom:10px; color:#00d4ff; font-size:12px;
+                background:rgba(13,27,42,.85); padding:5px 12px; border-radius:14px;
+                border:1px solid #1b4965; z-index:20; }
+  /* 第三页：雷达占约 2/3，右侧详细数据 */
+  #page3 { padding:8px; }
+  .p3grid { display:grid; grid-template-columns: 2fr 1fr; gap:8px;
+            height:calc(100vh - 131px); min-height:560px; }
+  .radarPanel { min-height:0; }
+  .radarPanel canvas { flex:1; width:100%; min-height:0; display:block; cursor:crosshair; }
+  .detailPanel { background:#0f1f33; border:1px solid #1b4965; border-radius:8px;
+                 padding:10px; overflow-y:auto; display:flex; flex-direction:column; gap:6px; }
+  .detailPanel h4 { color:#00d4ff; font-size:15px; margin-bottom:4px; letter-spacing:2px; }
+  .dbox { background:#0b1a2b; border:1px solid #173247; border-radius:6px;
+          padding:6px 10px; display:flex; justify-content:space-between; align-items:center; }
+  .dbox.hi { border-color:#1b4965; background:#0d2338; }
+  .dlbl { color:#9fbfd6; font-size:13px; }
+  .dval { color:#00ff88; font-size:16px; font-weight:bold; font-family:Consolas,monospace; }
+  .dbox.hi .dval { color:#ffcc00; font-size:18px; }
+  .gsinput { display:flex; flex-direction:column; gap:6px; margin-bottom:6px; }
+  .gsinput input { background:#0b1a2b; border:1px solid #1b4965; border-radius:6px;
+                   color:#00ff88; padding:7px 10px; font-size:14px;
+                   font-family:Consolas,monospace; }
+  .gsinput input::placeholder { color:#4a6a80; }
+  .gsbtns { display:flex; gap:6px; }
+  .gsbtns button { flex:1; background:#1b4965; color:#cfe9ff; border:1px solid #2c5f7f;
+                   border-radius:6px; padding:7px 6px; font-size:13px; cursor:pointer; }
+  .gsbtns button:hover { background:#2c5f7f; }
+  .gsmsg { color:#7fb6d6; font-size:12px; text-align:center; }
+</style>
+</head>
+<body>
+<div id="bar">
+  <h1>创空航天</h1>
+  <span class="sub">火箭遥测地面站 · 下滑查看曲线</span>
+  <button id="connBtn" class="off">连接 USB</button>
+</div>
+<div id="status">
+  <span><span id="loraDot" style="background:#ff4444"></span>LoRa</span>
+  <span>🛰 卫星: <b id="satVal">--</b></span>
+  <span>⏱ T+ <b id="timeVal">0.0</b>s</span>
+  <span>阶段: <b id="phaseVal">--</b></span>
+  <div id="reads">
+    <div><span class="lbl">高度 m</span><span id="altVal" class="big">0</span></div>
+    <div><span class="lbl">速度 m/s</span><span id="velVal" class="big green">0</span></div>
+  </div>
+</div>
+<div id="grid">
+  <div class="panel"><h3>姿态 ATTITUDE</h3><canvas id="cvAtt"></canvas></div>
+  <div class="panel"><h3>速度曲线 VELOCITY</h3><canvas id="cvVel"></canvas></div>
+  <div class="panel"><h3>高度曲线 ALTITUDE</h3><canvas id="cvAlt"></canvas></div>
+  <div class="panel"><h3>加速度 ACCEL (g)</h3><canvas id="cvAcc"></canvas></div>
+</div>
+
+<!-- ===== 第二页：姿态 / 加速度 / 高度 / 速度 / 气压 曲线 ===== -->
+<div id="page2">
+  <div class="p2grid">
+    <div class="panel wide"><h3>三姿态曲线 ATTITUDE (Pitch / Roll / Yaw)</h3><canvas id="cvAtt3"></canvas></div>
+    <div class="panel wide"><h3>三加速度曲线 ACCEL (AX / AY / AZ，含重力)</h3><canvas id="cvAcc3"></canvas></div>
+    <div class="panel wide"><h3>高度曲线 ALTITUDE</h3><canvas id="cvAlt3"></canvas></div>
+    <div class="panel wide"><h3>速度曲线 VELOCITY (GPS / 加速度拟合融合)</h3><canvas id="cvVel3"></canvas></div>
+    <div class="panel wide"><h3>气压曲线 PRESSURE (Pa)</h3><canvas id="cvPress"></canvas></div>
+  </div>
+</div>
+<!-- ===== 第三页：雷达扫描图 + 详细数据 ===== -->
+<div id="page3">
+  <div class="p3grid">
+    <div class="panel radarPanel">
+      <h3>雷达扫描图 RADAR · 中心=地基站 · 正北向上</h3>
+      <canvas id="cvRadar"></canvas>
+    </div>
+    <div class="detailPanel">
+      <h4>地基坐标（手动设一次即可）</h4>
+      <div class="gsinput">
+        <input id="inLat" placeholder="纬度 如 22.17590" />
+        <input id="inLon" placeholder="经度 如 113.07310" />
+        <input id="inAlt" placeholder="海拔 m（可留空）" />
+        <div class="gsbtns">
+          <button id="btnRocket">用火箭当前坐标为地基</button>
+        </div>
+        <div class="gsbtns">
+          <button id="btnGeo">本机定位(备用)</button>
+          <button id="btnSet">下发到思澈</button>
+        </div>
+        <div id="gsMsg" class="gsmsg">发射前把火箭摆在发射点，点上面按钮即可</div>
+      </div>
+      <h4>详细数据</h4>
+      <div class="dbox"><span class="dlbl">地基纬度</span><span id="dGsLat" class="dval">--</span></div>
+      <div class="dbox"><span class="dlbl">地基经度</span><span id="dGsLon" class="dval">--</span></div>
+      <div class="dbox"><span class="dlbl">地基海拔</span><span id="dGsAlt" class="dval">--</span></div>
+      <div class="dbox"><span class="dlbl">火箭纬度</span><span id="dRkLat" class="dval">--</span></div>
+      <div class="dbox"><span class="dlbl">火箭经度</span><span id="dRkLon" class="dval">--</span></div>
+      <div class="dbox hi"><span class="dlbl">地面投影距离</span><span id="dGDist" class="dval">--</span></div>
+      <div class="dbox hi"><span class="dlbl">直线距离</span><span id="dDist" class="dval">--</span></div>
+      <div class="dbox hi"><span class="dlbl">相对高度</span><span id="dDAlt" class="dval">--</span></div>
+      <div class="dbox hi"><span class="dlbl">方位角</span><span id="dBearing" class="dval">--</span></div>
+      <div class="dbox"><span class="dlbl">卫星数</span><span id="dGsSat" class="dval">--</span></div>
+      <div class="dbox"><span class="dlbl">定位状态</span><span id="dRadarSt" class="dval">--</span></div>
+      <div class="dbox"><span class="dlbl">地基时间</span><span id="dGsTime" class="dval">--</span></div>
+    </div>
+  </div>
+</div>
+<div id="scrollHint">↓ 下滑查看曲线与雷达扫描图</div>
+
+<script>
+const canvas = {
+  att: document.getElementById('cvAtt'), vel: document.getElementById('cvVel'),
+  alt: document.getElementById('cvAlt'), acc: document.getElementById('cvAcc')
+};
+const ctx = { att: canvas.att.getContext('2d'), vel: canvas.vel.getContext('2d'),
+              alt: canvas.alt.getContext('2d'), acc: canvas.acc.getContext('2d') };
+
+let data = { t:0, v:0, alt:0, pitch:0, roll:0, ax:0, ay:0, az:0, sat:0, phase:0, lora:1 };
+let hist = { t:[], v:[], alt:[], ax:[], ay:[], az:[], pitch:[], roll:[], yaw:[], press:[], temp:[] };
+const MAXN = 250;
+let connected = false;
+let port = null;
+let reconnectTimer = null;
+let lastPacketMs = 0;
+let lastRadarMs = 0;
+// 思澈端融合速度（无卫星时加速度拟合，有卫星时与 GPS 融合）
+let fusedVel = 0;
+let fusedAlt = 0;
+let lastPktMs = 0;
+
+// ---- Web Serial ----
+async function connect() {
+  if (connected || readLoopRunning) return;
+  try {
+    const selected = await navigator.serial.requestPort();
+    if (port && port !== selected) {
+      try { await port.close(); } catch(e) {}
+    }
+    port = selected;
+    await port.open({ baudRate: 1000000, flowControl: 'none' });
+    // 关键：降低 RTS/DTR，否则会把思澈 SoC 保持在复位状态，
+    // 导致 LCD 面板初始化失败（屏幕不亮 / ERR fb0）。
+    try { await port.setSignals({ dataTerminalReady: false, requestToSend: false }); } catch(e) {}
+    connected = true;
+    lastPacketMs = Date.now();
+    clearTimeout(reconnectTimer);
+    const btn = document.getElementById('connBtn');
+    btn.textContent = '已连接'; btn.className = 'on';
+    document.getElementById('loraDot').style.background = '#00ff88';
+    document.getElementById('loraDot').parentElement.firstChild.textContent = ' LoRa';
+    readLoop();
+    autoGround();          // 每次连上串口自动获取并下发地基坐标
+  } catch(e) { alert('连接失败: ' + e.message); }
+}
+
+let reader = null;
+let readLoopRunning = false;
+
+async function readLoop() {
+  if (readLoopRunning || !port) return;
+  readLoopRunning = true;
+  const textDecoder = new TextDecoder();
+  let buf = '';
+  let closedByDevice = false;
+
+  try {
+    // USB 只要还在，就持续读；一次读异常只重取 reader，不结束整个循环
+    while (connected && port && port.readable) {
+      let r = null;
+      try {
+        r = port.readable.getReader();
+        reader = r;
+        while (connected) {
+          const { value, done } = await r.read();
+          if (done) { closedByDevice = true; break; }
+          if (!value) continue;
+          buf += textDecoder.decode(value, { stream: true });
+          let idx;
+          while ((idx = buf.indexOf('\n')) >= 0) {
+            const line = buf.slice(0, idx).trim();
+            buf = buf.slice(idx + 1);
+            if (line.startsWith('{')) { try { parseJSON(line); } catch(e){} }
+          }
+        }
+      } catch(e) {
+        // 读异常：保持 USB 连接状态，稍后重新取 reader 继续读
+      } finally {
+        if (r) { try { r.releaseLock(); } catch(e) {} }
+        reader = null;
+      }
+      if (closedByDevice || !connected) break;
+      if (!port.readable) break;
+      await new Promise(resolve => setTimeout(resolve, 300));
+    }
+  } finally {
+    readLoopRunning = false;
+  }
+
+  if (closedByDevice) {
+    // 设备真的被拔出/关闭：这才判定 USB 断开
+    connected = false;
+    data.sat = 0; data.lora = 0; data.gpsTime = 'NO_TIME';
+    const btn = document.getElementById('connBtn');
+    btn.textContent = 'USB已断开';
+    btn.className = 'off';
+    document.getElementById('loraDot').style.background = '#ff4444';
+    scheduleReconnect();
+  } else if (connected) {
+    // USB 还连着，只是读循环被打断：自动重启读取，不再假死
+    setTimeout(() => { if (connected && !readLoopRunning) readLoop(); }, 500);
+  }
+}
+
+// ---- 雷达数据（思澈本地算好，随 JSON 一起发来）----
+let radar = { gs_rx:0, gs_nmea:0, gs_lat:0, gs_lon:0, gs_alt:0, gs_fix:0, gs_sat:0,
+              rocket_lat:0, rocket_lon:0, dist:0, gdist:0, dalt:0, bearing:0,
+              radar:0, gtime:'--:--:--' };
+let radarHover = null;
+
+// 最近若干次火箭坐标，用于取平均提高地基点精度
+const rkBuf = [];
+const RK_N = 30;
+
+function parseRadar(d) {
+  if (d.rocket_lat || d.rocket_lon) {
+    rkBuf.push([d.rocket_lat || 0, d.rocket_lon || 0]);
+    if (rkBuf.length > RK_N) rkBuf.shift();
+  }
+  radar = {
+    gs_rx: d.gs_rx|0, gs_nmea: d.gs_nmea|0,
+    gs_lat: d.gs_lat||0, gs_lon: d.gs_lon||0, gs_alt: d.gs_alt||0,
+    gs_fix: d.gs_fix|0, gs_sat: d.gs_sat|0,
+    rocket_lat: d.rocket_lat||0, rocket_lon: d.rocket_lon||0,
+    dist: d.dist||0, gdist: d.gdist||0, dalt: d.dalt||0, bearing: d.bearing||0,
+    radar: d.radar|0, gtime: d.gtime||'--:--:--'
+  };
+  lastRadarMs = Date.now();
+  const set = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+  set('dGsLat', radar.gs_fix ? radar.gs_lat.toFixed(7) : '--');
+  set('dGsLon', radar.gs_fix ? radar.gs_lon.toFixed(7) : '--');
+  set('dGsAlt', radar.gs_fix ? radar.gs_alt.toFixed(1) + ' m' : '--');
+  set('dRkLat', radar.rocket_lat ? radar.rocket_lat.toFixed(7) : '--');
+  set('dRkLon', radar.rocket_lon ? radar.rocket_lon.toFixed(7) : '--');
+  set('dGDist', radar.radar ? radar.gdist.toFixed(1) + ' m' : '--');
+  set('dDist', radar.radar ? radar.dist.toFixed(1) + ' m' : '--');
+  set('dDAlt', radar.radar ? (radar.dalt >= 0 ? '+' : '') + radar.dalt.toFixed(1) + ' m' : '--');
+  set('dBearing', radar.radar ? radar.bearing.toFixed(1) + '°' : '--');
+  set('dGsSat', radar.gs_sat);
+  set('dRadarSt', radar.radar ? '已定位' : (radar.gs_fix ? '等待箭载定位' : '等待地基定位'));
+  set('dGsTime', radar.gtime);
+}
+
+function parseJSON(line) {
+  const d = JSON.parse(line);
+  lastPacketMs = Date.now();
+  if (d.gs_lat !== undefined || d.radar !== undefined) { parseRadar(d); return; }
+  // 收到有效 JSON 只更新 LoRa 状态，绝不改变 USB 连接按钮状态。
+  if (data.lora === 0 && connected) {
+    document.getElementById('loraDot').style.background = '#00ff88';
+  }
+  data = { t:d.t||0, v:d.v||0, alt:d.alt||0,
+           pitch:(d.pitch===undefined?(d.p||0):d.pitch),
+           roll:(d.roll===undefined?(d.r||0):d.roll),
+           yaw:(d.yaw===undefined?(d.y||0):d.yaw),
+           ax:d.ax||0, ay:d.ay||0, az:d.az||0, sat:d.sat||0, phase:d.phase||0,
+           lora:(d.lora===undefined?1:d.lora), temp:d.temp||0, press:d.press||0,
+           // rlink：箭载端自报"它能不能收到思澈的回包"（1=通 0=断 -1/undefined=未知）
+           // 波形上用不到，但对判断单向故障很关键
+           rlink:(d.rlink===undefined?-1:d.rlink), probe:d.probe||0,
+           gpsTime:d.time||'NO_TIME', gpsFix:d.gps||0 };
+  hist.t.push(data.t);
+  hist.v.push(data.v); hist.alt.push(data.alt);
+  hist.ax.push(data.ax); hist.ay.push(data.ay); hist.az.push(data.az);
+  hist.pitch.push(data.pitch); hist.roll.push(data.roll); hist.yaw.push(data.yaw);
+  hist.press.push(data.press || 0); hist.temp.push(data.temp || 0);
+  if (hist.v.length > MAXN) {
+    hist.t.shift();
+    hist.v.shift(); hist.alt.shift(); hist.ax.shift(); hist.ay.shift(); hist.az.shift();
+    hist.pitch.shift(); hist.roll.shift(); hist.yaw.shift();
+    hist.press.shift(); hist.temp.shift();
+  }
+  // 收到遥测即恢复绿灯（不再由数据内容判定，避免闪红）
+  document.getElementById('loraDot').style.background = '#00ff88';
+  document.getElementById('satVal').textContent = data.sat;
+  document.getElementById('timeVal').textContent = data.gpsTime !== 'NO_TIME' ? data.gpsTime : data.t.toFixed(1);
+  document.getElementById('altVal').textContent = Math.round(data.alt);
+  document.getElementById('velVal').textContent = Math.round(data.v);
+  const ph = ['待发','点火确认','点火','飞行','任务结束','灭火'][data.phase] || data.phase;
+  document.getElementById('phaseVal').textContent = ph;
+}
+
+async function scheduleReconnect() {
+  if (!('serial' in navigator)) return;
+  clearTimeout(reconnectTimer);
+  reconnectTimer = setTimeout(async () => {
+    try {
+      const ports = await navigator.serial.getPorts();
+      if (ports.length) {
+        if (connected || readLoopRunning) return;
+        port = ports[0];
+        await port.open({baudRate:1000000, flowControl:'none'});
+        try { await port.setSignals({ dataTerminalReady: false, requestToSend: false }); } catch(e) {}
+        connected = true;
+        readLoop();
+        autoGround();      // 自动重连成功后同样自动同步地基坐标
+      }
+    } catch(e) { scheduleReconnect(); }
+  }, 1000);
+}
+
+/* LoRa/遥测状态：三档判断，避免正常丢包被误报成断开。
+ * ESP32 为接收按键命令，每 2 秒会留 1 秒纯接收窗口，那段时间本来就不发遥测，
+ * 加上包间隔 250ms，正常空隙可达 1.3 秒左右，所以：
+ *   < 5 秒  正常（绿灯）
+ *   5~12 秒 丢包中（橙灯，链路仍在）
+ *   > 12 秒 真无遥测（红灯）
+ *
+ * 另外增加"单向故障"判断：本端还收得到遥测，但箭载自报 rlink=0，
+ * 说明指令下行不通（箭载收不到我们的按键命令）。这种情况以前完全看不出来，
+ * 因为只显示了一个方向。 */
+setInterval(() => {
+  if (!connected) return;
+  const btn = document.getElementById('connBtn');
+  const dot = document.getElementById('loraDot');
+  const gap = Date.now() - lastPacketMs;
+  const oneWay = (data.rlink === 0 && gap < 5000);
+  if (oneWay) {
+    dot.style.background = '#ff9900';
+    data.lora = 1;                 // 本端链路在，只是箭载侧收不到
+    btn.textContent = '单向：箭载收不到指令';
+    btn.className = 'warn';
+  } else if (gap < 5000) {
+    dot.style.background = '#00ff88';
+    data.lora = 1;
+    btn.textContent = '已连接';
+    btn.className = 'on';
+  } else if (gap < 12000) {
+    dot.style.background = '#ff9900';
+    data.lora = 1;                 // 链路还在，只是暂时没收到包
+    btn.textContent = 'USB已连接 · 丢包中';
+    btn.className = 'warn';
+  } else {
+    dot.style.background = '#ff4444';
+    data.lora = 0;
+    btn.textContent = 'USB已连接 · 无遥测';
+    btn.className = 'warn';
+  }
+}, 500);
+
+// ---- Canvas helpers ----
+function sizeCanvas(c) {
+  c.width = c.clientWidth * (window.devicePixelRatio||1);
+  c.height = c.clientHeight * (window.devicePixelRatio||1);
+}
+function scale(g, c) { g.scale(c.width/ (c.clientWidth*1) , c.height/(c.clientHeight*1)); g.scale(1,1); }
+
+// ---- 股票式图表：自适应刻度网格 + 十字光标 + 坐标提示 ----
+const chartState = {};          // cvId -> { hover:{x,y} }
+const DPR = () => (window.devicePixelRatio || 1);
+
+function attachHover(cvId) {
+  const cv = document.getElementById(cvId);
+  if (!cv || cv._hoverBound) return;
+  cv._hoverBound = true;
+  cv.addEventListener('mousemove', ev => {
+    const r = cv.getBoundingClientRect();
+    chartState[cvId] = chartState[cvId] || {};
+    chartState[cvId].hover = {
+      x: (ev.clientX - r.left) * (cv.width / r.width),
+      y: (ev.clientY - r.top) * (cv.height / r.height)
+    };
+  });
+  cv.addEventListener('mouseleave', () => {
+    if (chartState[cvId]) chartState[cvId].hover = null;
+  });
+}
+
+// 把数值范围取整成“好看”的刻度（1 / 2 / 2.5 / 5 / 10 倍）
+function niceScale(min, max, ticks) {
+  if (!isFinite(min) || !isFinite(max)) { min = -1; max = 1; }
+  if (max - min < 1e-6) { const c = min; min = c - 1; max = c + 1; }
+  const raw = (max - min) / ticks;
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const norm = raw / mag;
+  let step = norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 2.5 ? 2.5 : norm <= 5 ? 5 : 10;
+  step *= mag;
+  return { lo: Math.floor(min / step) * step, hi: Math.ceil(max / step) * step, step };
+}
+
+function fmtVal(v, step) {
+  const d = step >= 1 ? 0 : step >= 0.1 ? 1 : step >= 0.01 ? 2 : 3;
+  return (v >= 0 ? '' : '-') + Math.abs(v).toFixed(d);
+}
+
+// 通用多曲线图：自带刻度网格、十字光标、坐标提示框
+function drawChart(cvId, series) {
+  const cv = document.getElementById(cvId);
+  if (!cv) return;
+  sizeCanvas(cv);
+  attachHover(cvId);
+  const g = cv.getContext('2d');
+  const S = DPR();
+  const W = cv.width, H = cv.height;
+  g.clearRect(0, 0, W, H);
+
+  const padL = 52 * S, padR = 12 * S, padT = 8 * S, padB = 20 * S;
+  const x0 = padL, y0 = padT;
+  const cw = W - padL - padR, ch = H - padT - padB;
+  if (cw <= 0 || ch <= 0) return;
+
+  const n = Math.max.apply(null, series.map(s => (hist[s.key] || []).length).concat([0]));
+  if (n < 2) {
+    g.fillStyle = '#456'; g.font = 'bold ' + (13 * S) + 'px Consolas,monospace';
+    g.fillText('等待数据…', x0 + 6 * S, y0 + ch / 2);
+    return;
+  }
+
+  // 自适应量程（留 12% 余量）
+  let lo = Infinity, hi = -Infinity;
+  series.forEach(s => {
+    (hist[s.key] || []).forEach(v => {
+      if (typeof v !== 'number' || !isFinite(v)) return;
+      if (v < lo) lo = v;
+      if (v > hi) hi = v;
+    });
+  });
+  if (!isFinite(lo)) { lo = -1; hi = 1; }
+  const pad = (hi - lo) * 0.12 || 0.5;
+  const sc = niceScale(lo - pad, hi + pad, 4);
+
+  const xAt = i => x0 + cw - (n - 1 - i) * (cw / (MAXN - 1));
+  const yAt = v => y0 + ch - ((v - sc.lo) / (sc.hi - sc.lo)) * ch;
+
+  // 横向网格 + 数值
+  g.font = (10 * S) + 'px Consolas,monospace';
+  g.textAlign = 'right'; g.textBaseline = 'middle';
+  for (let v = sc.lo; v <= sc.hi + sc.step * 0.001; v += sc.step) {
+    const y = yAt(v);
+    g.strokeStyle = (Math.abs(v) < sc.step * 0.001) ? '#2c5f7f' : '#173247';
+    g.lineWidth = 1 * S;
+    g.beginPath(); g.moveTo(x0, y); g.lineTo(x0 + cw, y); g.stroke();
+    g.fillStyle = '#7fb6d6';
+    g.fillText(fmtVal(v, sc.step), x0 - 6 * S, y);
+  }
+  // 纵向网格
+  g.strokeStyle = '#12283d'; g.lineWidth = 1 * S;
+  for (let k = 1; k < 6; k++) {
+    const x = x0 + cw * k / 6;
+    g.beginPath(); g.moveTo(x, y0); g.lineTo(x, y0 + ch); g.stroke();
+  }
+  g.strokeStyle = '#2c5f7f';
+  g.strokeRect(x0, y0, cw, ch);
+
+  // 曲线
+  series.forEach(s => {
+    const arr = hist[s.key] || [];
+    if (arr.length < 2) return;
+    g.strokeStyle = s.color; g.lineWidth = 1.8 * S;
+    g.beginPath();
+    const off = n - arr.length;
+    for (let i = 0; i < arr.length; i++) {
+      const x = xAt(i + off), y = yAt(arr[i]);
+      i === 0 ? g.moveTo(x, y) : g.lineTo(x, y);
+    }
+    g.stroke();
+  });
+
+  // 图例（左上角，带当前值）
+  let lx = x0 + 8 * S;
+  g.textAlign = 'left'; g.textBaseline = 'middle';
+  series.forEach(s => {
+    const arr = hist[s.key] || [];
+    const last = arr.length ? arr[arr.length - 1] : 0;
+    const txt = s.label + ' ' + Number(last).toFixed(2);
+    g.fillStyle = s.color; g.font = 'bold ' + (11 * S) + 'px Consolas,monospace';
+    g.fillText(txt, lx, y0 + 10 * S);
+    lx += g.measureText(txt).width + 14 * S;
+  });
+
+  // 十字光标 + 坐标提示（股票软件风格）
+  const st = chartState[cvId];
+  if (st && st.hover && st.hover.x >= x0 && st.hover.x <= x0 + cw) {
+    const idx = Math.round(n - 1 - (x0 + cw - st.hover.x) / (cw / (MAXN - 1)));
+    const i = Math.max(0, Math.min(n - 1, idx));
+    const cx = xAt(i);
+
+    g.strokeStyle = '#8fd0ff'; g.lineWidth = 1 * S;
+    g.setLineDash([4 * S, 3 * S]);
+    g.beginPath(); g.moveTo(cx, y0); g.lineTo(cx, y0 + ch); g.stroke();
+    const hy = Math.max(y0, Math.min(y0 + ch, st.hover.y));
+    g.beginPath(); g.moveTo(x0, hy); g.lineTo(x0 + cw, hy); g.stroke();
+    g.setLineDash([]);
+
+    // 提示框
+    const rows = [];
+    const tArr = hist.t || [];
+    const off = n - 1 - i;
+    let tval = null;
+    if (tArr.length > off) tval = tArr[tArr.length - 1 - off];
+    rows.push({ txt: 'T+ ' + (tval === null ? (i + 1) : Number(tval).toFixed(1)) + 's', color: '#cfe9ff' });
+    series.forEach(s => {
+      const arr = hist[s.key] || [];
+      const j = arr.length - 1 - off;
+      const v = (j >= 0 && j < arr.length) ? arr[j] : null;
+      rows.push({ txt: s.label + ': ' + (v === null ? '--' : Number(v).toFixed(2)), color: s.color });
+    });
+
+    g.font = 'bold ' + (11 * S) + 'px Consolas,monospace';
+    let bw = 0;
+    rows.forEach(r => { bw = Math.max(bw, g.measureText(r.txt).width); });
+    bw += 16 * S;
+    const bh = rows.length * 15 * S + 10 * S;
+    let bx = cx + 12 * S;
+    if (bx + bw > x0 + cw) bx = cx - 12 * S - bw;
+    if (bx < x0) bx = x0 + 2 * S;
+    let by = y0 + 6 * S;
+
+    g.fillStyle = 'rgba(6,20,32,0.92)';
+    g.fillRect(bx, by, bw, bh);
+    g.strokeStyle = '#3d7ea6'; g.lineWidth = 1 * S;
+    g.strokeRect(bx, by, bw, bh);
+    g.textAlign = 'left'; g.textBaseline = 'middle';
+    rows.forEach((r, k) => {
+      g.fillStyle = r.color;
+      g.fillText(r.txt, bx + 8 * S, by + 12 * S + k * 15 * S);
+    });
+
+    // 光标处的点
+    series.forEach(s => {
+      const arr = hist[s.key] || [];
+      const j = arr.length - 1 - off;
+      if (j < 0 || j >= arr.length) return;
+      g.fillStyle = s.color;
+      g.beginPath(); g.arc(cx, yAt(arr[j]), 3 * S, 0, Math.PI * 2); g.fill();
+    });
+  }
+}
+
+function drawAttitude() {
+  const g = ctx.att, W = canvas.att.width, H = canvas.att.height;
+  g.clearRect(0,0,W,H);
+  const cx=W/2, cy=H/2, R=Math.min(W,H)/2 - 8;
+  const roll = data.roll*Math.PI/180;
+  const hy = cy - data.pitch*2.5;   // 俯仰移动地平线
+  // 天空/地面 (倾斜)
+  const cs=Math.cos(roll), sn=Math.sin(roll);
+  g.save();
+  g.translate(cx, cy); g.rotate(roll); g.translate(-cx, -hy);
+  g.fillStyle='#1e6fd9'; g.fillRect(0,0,W,Math.max(0,hy));   // 天空
+  g.fillStyle='#7a5230'; g.fillRect(0,Math.max(0,hy),W,H-hy); // 地面
+  g.restore();
+  // 地平线
+  g.strokeStyle='#00ffff'; g.lineWidth=3;
+  g.beginPath(); g.moveTo(0,hy); g.lineTo(W,hy); g.stroke();
+  // 圆框
+  g.save();
+  g.beginPath(); g.arc(cx,cy,R,0,2*Math.PI); g.clip();
+  g.beginPath(); g.arc(cx,cy,R,0,2*Math.PI);
+  g.fillStyle='transparent';
+  g.strokeStyle='#fff'; g.lineWidth=4; g.stroke();
+  // 中心固定十字 (火箭)
+  g.strokeStyle='#fff'; g.lineWidth=2;
+  g.beginPath(); g.moveTo(cx-R+10,cy); g.lineTo(cx-10,cy);
+  g.moveTo(cx+10,cy); g.lineTo(cx+R-10,cy); g.stroke();
+  g.restore();
+  // 火箭
+  g.fillStyle='#ff8c00';
+  g.fillRect(cx-4,cy-12,8,24);
+  g.fillStyle='#ff3333';
+  g.beginPath(); g.moveTo(cx-3,cy+12); g.lineTo(cx,cy+22); g.lineTo(cx+3,cy+12); g.fill();
+}
+
+// ---- 雷达扫描图：同心距离圆盘 + 扫描线 + 火箭坐标点 + 悬停详情 ----
+let sweepAngle = 0;
+// ---- 本机相对位置计算（不依赖思澈，避免任何串口写操作）----
+function havDist(la1, lo1, la2, lo2) {
+  const R = 6371000, d2r = Math.PI / 180;
+  const dLa = (la2 - la1) * d2r, dLo = (lo2 - lo1) * d2r;
+  const a = Math.sin(dLa / 2) ** 2 +
+            Math.cos(la1 * d2r) * Math.cos(la2 * d2r) * Math.sin(dLo / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+function calcBearing(la1, lo1, la2, lo2) {
+  const d2r = Math.PI / 180;
+  const y = Math.sin((lo2 - lo1) * d2r) * Math.cos(la2 * d2r);
+  const x = Math.cos(la1 * d2r) * Math.sin(la2 * d2r) -
+            Math.sin(la1 * d2r) * Math.cos(la2 * d2r) * Math.cos((lo2 - lo1) * d2r);
+  let b = Math.atan2(y, x) * 180 / Math.PI;
+  return b < 0 ? b + 360 : b;
+}
+
+// 有效雷达数据：优先本机基准，否则用思澈算好的
+function effRadar() {
+  const rkLa = radar.rocket_lat, rkLo = radar.rocket_lon;
+  if (localGround && (rkLa || rkLo)) {
+    const g = havDist(localGround[0], localGround[1], rkLa, rkLo);
+    const al = (data.alt || 0) - (localGround[2] || 0);
+    return { valid: true, gdist: g, dist: Math.hypot(g, al), dalt: al,
+             bearing: calcBearing(localGround[0], localGround[1], rkLa, rkLo),
+             src: '本机基准' };
+  }
+  if (radar.radar) {
+    return { valid: true, gdist: radar.gdist, dist: radar.dist, dalt: radar.dalt,
+             bearing: radar.bearing, src: '箭载自动校准' };
+  }
+  return { valid: false, gdist: 0, dist: 0, dalt: 0, bearing: 0, src: '无基准' };
+}
+
+// 量程随实际距离自适应：近距离用 5m/10m 档，远距离自动放大到 km 档
+function niceRange(v) {
+  const steps = [5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000,
+                 10000, 20000, 50000, 100000];
+  for (const s of steps) if (v <= s) return s;
+  return 200000;
+}
+
+function drawRadar() {
+  const cv = document.getElementById('cvRadar');
+  if (!cv || !cv.clientWidth) return;
+  sizeCanvas(cv);
+  const g = cv.getContext('2d');
+  const S = DPR();
+  const W = cv.width, H = cv.height;
+  g.clearRect(0, 0, W, H);
+
+  const cx = W / 2, cy = H / 2;
+  const R = Math.min(W, H) / 2 - 40 * S;
+  if (R <= 10) return;
+
+  const eff = effRadar();
+
+  // 量程自适应：按实际距离实时缩放
+  const maxD = Math.max(eff.valid ? eff.gdist : 0, 5);
+  const range = niceRange(maxD * 1.2);
+  const sc = R / range;
+
+  // 圆盘背景
+  g.fillStyle = '#06131f';
+  g.beginPath(); g.arc(cx, cy, R, 0, Math.PI * 2); g.fill();
+
+  // 4 圈同心圆 + 距离刻度
+  g.font = (11 * S) + 'px Consolas,monospace';
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  for (let k = 1; k <= 4; k++) {
+    const r = R * k / 4;
+    g.strokeStyle = k === 4 ? '#3d7ea6' : '#173247';
+    g.lineWidth = (k === 4 ? 1.6 : 1) * S;
+    g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.stroke();
+    const label = (range * k / 4 >= 1000)
+      ? (range * k / 4000).toFixed(1) + 'km'
+      : (range * k / 4).toFixed(0) + 'm';
+    g.fillStyle = '#7fb6d6';
+    g.fillText(label, cx + r * 0.7071, cy - r * 0.7071 - 8 * S);
+  }
+
+  // 十字准线
+  g.strokeStyle = '#12283d'; g.lineWidth = 1 * S;
+  g.beginPath(); g.moveTo(cx - R, cy); g.lineTo(cx + R, cy);
+  g.moveTo(cx, cy - R); g.lineTo(cx, cy + R); g.stroke();
+
+  // 方位标注（正北在上）
+  g.font = 'bold ' + (14 * S) + 'px Consolas,monospace';
+  g.fillStyle = '#ff5555'; g.fillText('N 北', cx, cy - R - 18 * S);
+  g.fillStyle = '#7fb6d6';
+  g.fillText('S', cx, cy + R + 18 * S);
+  g.fillText('W', cx - R - 18 * S, cy);
+  g.fillText('E', cx + R + 18 * S, cy);
+
+  // 扫描线 + 拖尾
+  sweepAngle = (sweepAngle + 0.02) % (Math.PI * 2);
+  for (let t = 0; t < 30; t++) {
+    const a = sweepAngle - t * 0.02;
+    g.strokeStyle = 'rgba(0,255,136,' + (0.30 * (1 - t / 30)) + ')';
+    g.lineWidth = 2 * S;
+    g.beginPath(); g.moveTo(cx, cy);
+    g.lineTo(cx + R * Math.sin(a), cy - R * Math.cos(a)); g.stroke();
+  }
+  g.strokeStyle = '#00ff88'; g.lineWidth = 2 * S;
+  g.beginPath(); g.moveTo(cx, cy);
+  g.lineTo(cx + R * Math.sin(sweepAngle), cy - R * Math.cos(sweepAngle)); g.stroke();
+
+  // 地基站（中心）
+  g.fillStyle = '#00ff88';
+  g.beginPath(); g.arc(cx, cy, 5 * S, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = '#00ff88'; g.lineWidth = 1.5 * S;
+  g.beginPath(); g.arc(cx, cy, 10 * S, 0, Math.PI * 2); g.stroke();
+
+  // 火箭坐标点
+  if (eff.valid) {
+    const br = eff.bearing * Math.PI / 180;
+    const px = cx + eff.gdist * sc * Math.sin(br);
+    const py = cy - eff.gdist * sc * Math.cos(br);
+    radarHover = { x: px, y: py };
+
+    g.strokeStyle = 'rgba(255,204,0,0.45)'; g.lineWidth = 1.5 * S;
+    g.beginPath(); g.moveTo(cx, cy); g.lineTo(px, py); g.stroke();
+
+    g.fillStyle = '#ffcc00';
+    g.beginPath(); g.arc(px, py, 7 * S, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = '#ff8800'; g.lineWidth = 2 * S;
+    g.beginPath(); g.arc(px, py, 13 * S, 0, Math.PI * 2); g.stroke();
+    g.fillStyle = '#ffcc00';
+    g.font = 'bold ' + (12 * S) + 'px Consolas,monospace';
+    g.textAlign = 'left';
+    const dl = eff.gdist >= 1000 ? (eff.gdist / 1000).toFixed(2) + 'km' : eff.gdist.toFixed(1) + 'm';
+    g.fillText(dl, px + 16 * S, py - 4 * S);
+
+    g.fillStyle = '#7fb6d6';
+    g.font = (11 * S) + 'px Consolas,monospace';
+    g.textAlign = 'center';
+    g.fillText('基准：' + eff.src, cx, cy + R + 16 * S);
+  } else {
+    radarHover = null;
+    g.fillStyle = '#ff8800';
+    g.font = 'bold ' + (16 * S) + 'px Consolas,monospace';
+    g.textAlign = 'center';
+    g.fillText('火箭方位', cx, cy + R + 42 * S);
+    g.fillStyle = '#7fb6d6';
+    g.font = (12 * S) + 'px Consolas,monospace';
+    g.fillText(data.gpsFix ? '等待思澈校准地基…' : '等待箭载 GPS 定位…', cx, cy + R + 62 * S);
+  }
+
+  // 悬停详情框
+  if (radarHover && radarHoverHover && eff.valid) {
+    const rows = [
+      ['火箭方位角', eff.bearing.toFixed(1) + '°'],
+      ['地面投影距离', eff.gdist.toFixed(1) + ' m'],
+      ['直线距离', eff.dist.toFixed(1) + ' m'],
+      ['相对高度', (eff.dalt >= 0 ? '+' : '') + eff.dalt.toFixed(1) + ' m'],
+      ['火箭纬度', radar.rocket_lat.toFixed(7)],
+      ['火箭经度', radar.rocket_lon.toFixed(7)]
+    ];
+    g.font = 'bold ' + (12 * S) + 'px Consolas,monospace';
+    let bw = 0;
+    rows.forEach(r => { bw = Math.max(bw, g.measureText(r[0] + ': ' + r[1]).width); });
+    bw += 20 * S;
+    const bh = rows.length * 17 * S + 14 * S;
+    let bx = radarHover.x + 18 * S, by = radarHover.y - bh / 2;
+    if (bx + bw > W - 4) bx = radarHover.x - 18 * S - bw;
+    if (by < 4) by = 4;
+    if (by + bh > H - 4) by = H - 4 - bh;
+    g.fillStyle = 'rgba(6,20,32,0.95)';
+    g.fillRect(bx, by, bw, bh);
+    g.strokeStyle = '#ffcc00'; g.lineWidth = 1.5 * S;
+    g.strokeRect(bx, by, bw, bh);
+    g.textAlign = 'left';
+    rows.forEach((r, i) => {
+      g.fillStyle = '#9fbfd6';
+      g.fillText(r[0] + ':', bx + 10 * S, by + 16 * S + i * 17 * S);
+      g.fillStyle = '#ffcc00';
+      const lw = g.measureText(r[0] + ': ').width;
+      g.fillText(r[1], bx + 10 * S + lw, by + 16 * S + i * 17 * S);
+    });
+  }
+}
+
+let radarHoverHover = false;
+function bindRadarHover() {
+  const cv = document.getElementById('cvRadar');
+  if (!cv || cv._rh) return;
+  cv._rh = true;
+  cv.addEventListener('mousemove', ev => {
+    const r = cv.getBoundingClientRect();
+    const S = DPR();
+    const x = (ev.clientX - r.left) * (cv.width / r.width);
+    const y = (ev.clientY - r.top) * (cv.height / r.height);
+    radarHoverHover = !!(radarHover &&
+      Math.hypot(x - radarHover.x, y - radarHover.y) < 40 * S);
+  });
+  cv.addEventListener('mouseleave', () => { radarHoverHover = false; });
+}
+
+// ---- 地基坐标：手动输入或读取本机定位，下发给思澈 ----
+async function sendGround() {
+  const msg = document.getElementById('gsMsg');
+  const lat = document.getElementById('inLat').value.trim();
+  const lon = document.getElementById('inLon').value.trim();
+  const alt = document.getElementById('inAlt').value.trim() || '0';
+  if (!lat || !lon) { msg.textContent = '请先填写经纬度'; msg.style.color = '#ff8800'; return; }
+  localStorage.setItem('dsh.gs', lat + ',' + lon + ',' + alt);
+  await pushGround(lat, lon, alt);
+}
+
+// 精度拉到最高：高精度模式 + 不使用缓存 + 7 位小数（约 1cm）
+function geoOptions() {
+  return { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 };
+}
+
+function fillGroundInputs(lat, lon, alt) {
+  document.getElementById('inLat').value = Number(lat).toFixed(7);
+  document.getElementById('inLon').value = Number(lon).toFixed(7);
+  if (alt !== undefined && alt !== null && !isNaN(alt)) {
+    document.getElementById('inAlt').value = Number(alt).toFixed(1);
+  }
+}
+
+/* 地基坐标只在本机计算，绝不往串口写任何数据。
+ * 原因：思澈程序若读控制台会和 NSH 争抢 stdin 导致死锁卡死，
+ * 所以网页对串口保持「只读」，避免一切写操作。 */
+let localGround = null;   // [lat, lon, alt] 本机基准，优先级最高
+
+async function pushGround(lat, lon, alt) {
+  const msg = document.getElementById('gsMsg');
+  localGround = [Number(lat), Number(lon), Number(alt) || 0];
+  msg.textContent = '本机雷达基准已更新：' + localGround[0].toFixed(7) + ', ' + localGround[1].toFixed(7) +
+                    '（仅网页显示，不动思澈）';
+  msg.style.color = '#00ff88';
+  return true;
+}
+
+// 每次连上串口自动获取本机定位并下发；同时缓存到本机，下次秒同步
+async function autoGround() {
+  const msg = document.getElementById('gsMsg');
+  const cached = localStorage.getItem('dsh.gs');
+  if (cached) {
+    const c = cached.split(',');
+    if (c.length >= 2) { fillGroundInputs(c[0], c[1], c[2]); await pushGround(c[0], c[1], c[2]); }
+  }
+  if (!navigator.geolocation) {
+    if (!cached) { msg.textContent = '浏览器不支持定位，请手动填写经纬度'; msg.style.color = '#ff8800'; }
+    return;
+  }
+  msg.textContent = '正在以最高精度获取本机定位…'; msg.style.color = '#7fb6d6';
+  navigator.geolocation.getCurrentPosition(
+    async pos => {
+      const la = pos.coords.latitude, lo = pos.coords.longitude;
+      const al = pos.coords.altitude;
+      const acc = pos.coords.accuracy;
+      fillGroundInputs(la, lo, al);
+      localStorage.setItem('dsh.gs',
+        la.toFixed(7) + ',' + lo.toFixed(7) + ',' + (al === null ? 0 : al).toFixed(1));
+      await pushGround(la, lo, al);
+      msg.textContent = (msg.textContent || '') + '　精度 ±' + Math.round(acc) + 'm';
+    },
+    err => {
+      if (!cached) { msg.textContent = '定位失败：' + err.message + '（可手动填写）'; msg.style.color = '#ff4444'; }
+      else { msg.textContent = '使用本机缓存坐标（定位失败：' + err.message + '）'; msg.style.color = '#ff8800'; }
+    },
+    geoOptions()
+  );
+}
+
+// 用 ESP32 卫星当前的坐标作为地基坐标：
+// 发射前火箭就摆在发射点，箭载 GPS 精度 1~3m，比浏览器定位准得多。
+async function useRocketAsGround() {
+  const msg = document.getElementById('gsMsg');
+  if (!radar.rocket_lat && !radar.rocket_lon) {
+    msg.textContent = '还没收到火箭坐标，等 ESP32 搜到星再点';
+    msg.style.color = '#ff8800';
+    return;
+  }
+  // 用最近 N 次定位取平均，静止时精度可提升数倍
+  let sla = 0, slo = 0, n = 0;
+  rkBuf.forEach(p => { if (p[0] || p[1]) { sla += p[0]; slo += p[1]; n++; } });
+  const la = n >= 5 ? sla / n : radar.rocket_lat;
+  const lo = n >= 5 ? slo / n : radar.rocket_lon;
+  const al = data.alt || 0;      // 火箭海拔即发射点海拔
+  fillGroundInputs(la, lo, al);
+  localStorage.setItem('dsh.gs',
+    Number(la).toFixed(7) + ',' + Number(lo).toFixed(7) + ',' + Number(al).toFixed(1));
+  const ok = await pushGround(la, lo, al);
+  if (ok) {
+    msg.textContent = '地基已设为发射点：' + Number(la).toFixed(7) + ', ' + Number(lo).toFixed(7) +
+                      '，海拔 ' + Number(al).toFixed(1) + 'm（' + n + ' 点平均，箭载 GPS ' +
+                      (data.sat || 0) + ' 颗星）';
+    msg.style.color = '#00ff88';
+  }
+}
+
+async function useGeoLocation() {
+  const msg = document.getElementById('gsMsg');
+  if (!navigator.geolocation) { msg.textContent = '浏览器不支持定位'; msg.style.color = '#ff8800'; return; }
+  msg.textContent = '正在以最高精度获取本机定位…'; msg.style.color = '#7fb6d6';
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      const la = pos.coords.latitude, lo = pos.coords.longitude, al = pos.coords.altitude;
+      fillGroundInputs(la, lo, al);
+      localStorage.setItem('dsh.gs',
+        la.toFixed(7) + ',' + lo.toFixed(7) + ',' + (al === null ? 0 : al).toFixed(1));
+      msg.textContent = '已获取定位（精度 ±' + Math.round(pos.coords.accuracy) + 'm），请点「下发到思澈」';
+      msg.style.color = '#00ff88';
+    },
+    err => { msg.textContent = '定位失败：' + err.message; msg.style.color = '#ff4444'; },
+    geoOptions()
+  );
+}
+
+let gsBound = false;
+function bindGroundUI() {
+  if (gsBound) return;
+  const b1 = document.getElementById('btnSet');
+  const b2 = document.getElementById('btnGeo');
+  const b3 = document.getElementById('btnRocket');
+  if (!b1 || !b2 || !b3) return;
+  gsBound = true;
+  b1.addEventListener('click', sendGround);
+  b2.addEventListener('click', useGeoLocation);
+  b3.addEventListener('click', useRocketAsGround);
+}
+
+let lastDraw = 0;
+function drawLoop(now){
+  // 约 30fps 重绘，浏览器不卡
+  if (!now || now - lastDraw > 33) {
+    lastDraw = now || 0;
+    sizeCanvas(canvas.att);
+    drawAttitude();
+    drawChart('cvVel', [{key:'v',color:'#00ff88',label:'速度'}]);
+    drawChart('cvAlt', [{key:'alt',color:'#ffcc00',label:'高度'}]);
+    drawChart('cvAcc', [{key:'ax',color:'#ff5555',label:'AX'},
+                        {key:'ay',color:'#00ff55',label:'AY'},
+                        {key:'az',color:'#4488ff',label:'AZ'}]);
+    // 第二页
+    drawChart('cvAtt3', [{key:'pitch',color:'#00d4ff',label:'Pitch'},
+                         {key:'roll',color:'#ff5599',label:'Roll'},
+                         {key:'yaw',color:'#ffcc00',label:'Yaw'}]);
+    drawChart('cvAcc3', [{key:'ax',color:'#ff5555',label:'AX'},
+                         {key:'ay',color:'#00ff55',label:'AY'},
+                         {key:'az',color:'#4488ff',label:'AZ'}]);
+    drawChart('cvAlt3', [{key:'alt',color:'#ffcc00',label:'高度'}]);
+    drawChart('cvVel3', [{key:'v',color:'#00ff88',label:'速度'}]);
+    drawChart('cvPress', [{key:'press',color:'#00d4ff',label:'气压'}]);
+    bindRadarHover();
+    bindGroundUI();
+    drawRadar();
+  }
+  requestAnimationFrame(drawLoop);
+}
+
+document.getElementById('connBtn').addEventListener('click', ()=>{
+  if(!connected) connect();
+});
+drawLoop();
+
+// 仅显示真实数据，不在串口断开时生成假卫星/假飞行数据
+setTimeout(()=>{
+  if(!connected){
+    data.sat = 0; data.lora = 0;
+    document.getElementById('satVal').textContent = '0';
+    document.getElementById('loraDot').style.background = '#ff4444';
+  }
+  /*
+  if(!connected){
+    document.getElementById('status').firstChild.firstChild.textContent='';
+    document.getElementById('loraDot').style.background='#00ff88';
+    // 模拟
+    let t=0;
+    setInterval(()=>{
+      if(connected) return;
+      t+=0.1;
+      const v = t<12 ? 12*t : Math.max(0, 144 - 6*(t-12));
+      data = {t, v, alt:v*t*0.1, pitch:20*Math.sin(t*0.25), roll:8*Math.sin(t*0.5),
+              ax:0.1*Math.sin(t), ay:0.08*Math.cos(t), az:1+Math.min(2.5,t/4),
+              sat:5, phase:t<1?0:t<2.5?1:t<12?2:3, lora:1};
+      hist.v.push(v); hist.alt.push(data.alt);
+      hist.ax.push(data.ax); hist.ay.push(data.ay); hist.az.push(data.az);
+      if(hist.v.length>MAXN){hist.v.shift();hist.alt.shift();hist.ax.shift();hist.ay.shift();hist.az.shift();}
+      document.getElementById('timeVal').textContent=t.toFixed(1);
+      document.getElementById('altVal').textContent=Math.round(data.alt);
+      document.getElementById('velVal').textContent=Math.round(data.v);
+      const ph=['待发','点火','上升','滑行'][data.phase]; document.getElementById('phaseVal').textContent=ph;
+      document.getElementById('satVal').textContent=5;
+      const btn=document.getElementById('connBtn');
+      if(btn.textContent!=='已连接'){btn.textContent='演示模式(点击连接USB)';btn.className='dis';}
+    }, 100);
+  }
+  */
+}, 3000);
+</script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+############################################################################
+# 465 创空航天 — 地面站应用 Make.defs
+############################################################################
+
+ifneq ($(CONFIG_EXAMPLES_UART2HWTEST),)
+CONFIGURED_APPS += $(APPDIR)/packages/demos/contest2026_465_chuangkong_ground_station
+endif

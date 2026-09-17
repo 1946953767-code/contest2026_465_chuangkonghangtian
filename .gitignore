@@ -1,0 +1,26 @@
+# ============================================================
+# .gitignore（依据组委会 .gitignore.example，按本作品情况增删）
+#
+# 注意：logs/ 下最终导出的 AI Coding 日志必须提交，不要忽略！
+# ============================================================
+
+# Build artifacts
+build/
+out/
+cmake_out/
+*.o
+*.a
+*.elf
+*.hex
+*.map
+*.bin
+
+# Python
+__pycache__/
+*.pyc
+
+# Editor / OS
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
