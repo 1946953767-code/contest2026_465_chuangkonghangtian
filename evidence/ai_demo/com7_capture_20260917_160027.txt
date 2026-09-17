@@ -1,0 +1,5 @@
+BUZZER self-test done
+SD recording auto-start -> telemetry_0.csv
+SD file -> /sd/telemetry_0.csv
+STAT tx=18 listen=2 cmd=18 lora=0 peer=0 age=-1s lat=0.00000 lon=0.00000 fix=0 sat=0 t=NO_TIME
+STAT tx=43 listen=7 cmd=36 lora=0 peer=0 age=-1s lat=0.00000 lon=0.00000 fix=0 sat=0 t=NO_TIME

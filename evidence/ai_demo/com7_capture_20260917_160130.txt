@@ -1,0 +1,8 @@
+STAT tx=77 listen=14 cmd=68 lora=0 peer=0 age=-1s lat=0.00000 lon=0.00000 fix=0 sat=0 t=NO_TIME
+SD flush 9 rows 326ms (period=200)
+CMD PING
+CMD PING
+CMD PING
+CMD PING
+CMD PING
+STAT tx=102 listen=19 cmd=96 lora=0 peer=0 age=-1s lat=0.00000 lon=0.00000 fix=0 sat=0 t=NO_TIME

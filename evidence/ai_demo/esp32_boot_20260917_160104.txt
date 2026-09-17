@@ -1,0 +1,24 @@
+Traceback (most recent call last):
+  File "main.py", line 11, in <module>
+  File "central_tx.py", line 688, in main
+  File "central_tx.py", line 552, in update_tft
+KeyboardInterrupt: 
+MicroPython v1.19.1 on 2022-06-18; ESP32S3 module with ESP32S3
+Type "help()" for more information.
+>>> 
+>>> 
+MPY: soft reboot
+offline telemetry boot
+TFT OK
+MPU6050 OK
+BME280/BMP280 0x58
+GPS UART OK
+LoRa UART OK
+SD OK (try 1)
+RGB LED OK (standby: off)
+BUZZER self-test done
+SD recording auto-start -> telemetry_0.csv
+STAT tx=2 listen=0 cmd=0 lora=0 peer=0 age=-1s lat=0.00000 lon=0.00000 fix=0 sat=0 t=NO_TIME
+SD file -> /sd/telemetry_0.csv
+STAT tx=27 listen=4 cmd=25 lora=0 peer=0 age=-1s lat=0.00000 lon=0.00000 fix=0 sat=0 t=NO_TIME
+STAT tx=52 listen=9 cmd=41 lora=0 peer=0 age=-1s lat=0.00000 lon=0.00000 fix=0 sat=0 t=NO_TIME
