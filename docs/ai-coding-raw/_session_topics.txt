@@ -843,7 +843,7 @@ AI Coding 会话与提问索引（创空航天 / Team 465）
     · background job pwsh-1 (pwsh: cmd /c "codex exec --skip-git-repo-check --sandbox read-only 
     · background job pwsh-2 (pwsh: cmd /c "codex doctor 2>&1" | Select-Object -First 60) finishe
     · 如果codex需要配置什么就搞，要问就问
-    · sk-e0bbd30f161f6e4bea9cee01f6e79e2f202465f7e38444afe391644b23cd8ffc这个是gpt的密钥看看有没有能用上的
+    · <REDACTED-API-KEY>这个是gpt的密钥看看有没有能用上的
     · https://maylily.xyz端点这个
     · 这个可能有点慢，如果太慢或者太难就用之前那个key
     · 我10不是接sd卡的mosi吗然后在第七个孔（旁边是9，11
