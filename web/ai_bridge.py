@@ -171,7 +171,18 @@ class Handler(BaseHTTPRequestHandler):
 
 def main():
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8766
-    srv = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+
+    # Windows 默认允许重复绑定同一端口，会出现"两个进程都在听"的假象；
+    # 关掉它，端口被占时直接报错，便于发现旧进程。
+    class Srv(ThreadingHTTPServer):
+        allow_reuse_address = False
+
+    try:
+        srv = Srv(("127.0.0.1", port), Handler)
+    except OSError as e:
+        print("端口 %d 被占用（先关掉旧的 ai_bridge）：%s" % (port, e))
+        sys.exit(1)
+
     print("P4X AI bridge v2 on http://127.0.0.1:%d   key=%s" % (port, "yes" if KEY else "NO"))
     print("  GET  /health")
     print("  POST /ask  {\"q\":\"...\",\"ctx\":\"...\",\"history\":[...]}")
