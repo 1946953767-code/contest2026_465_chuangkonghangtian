@@ -166,11 +166,13 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"ok": True, **result})
 
     def log_message(self, fmt, *args):                        # 安静
-        sys.stderr.write("%s - %s\n" % (self.address_string(), fmt % args))
+        # pythonw.exe 下 sys.stderr 是 None，这里绝不能写，否则每个请求都会断开
+        pass
 
 
 def main():
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8766
+    out = sys.stdout if sys.stdout is not None else open(os.devnull, "w")
 
     # Windows 默认允许重复绑定同一端口，会出现"两个进程都在听"的假象；
     # 关掉它，端口被占时直接报错，便于发现旧进程。
@@ -180,16 +182,15 @@ def main():
     try:
         srv = Srv(("127.0.0.1", port), Handler)
     except OSError as e:
-        print("端口 %d 被占用（先关掉旧的 ai_bridge）：%s" % (port, e))
-        sys.exit(1)
+        out.write("端口 %d 被占用（先关掉旧的 ai_bridge）：%s\n" % (port, e))
+        return
 
-    print("P4X AI bridge v2 on http://127.0.0.1:%d   key=%s" % (port, "yes" if KEY else "NO"))
-    print("  GET  /health")
-    print("  POST /ask  {\"q\":\"...\",\"ctx\":\"...\",\"history\":[...]}")
+    out.write("P4X AI bridge v2 on http://127.0.0.1:%d   key=%s\n" % (port, "yes" if KEY else "NO"))
+    out.flush()
     try:
         srv.serve_forever()
     except KeyboardInterrupt:
-        print("\nbye")
+        pass
 
 
 if __name__ == "__main__":
