@@ -1,21 +1,27 @@
-﻿@echo off
-chcp 65001 >nul 2>&1
+@echo off
+setlocal
 cd /d "%~dp0"
 
-rem 8765：页面服务（WebSerial 需要 localhost，file:// 不行）
-start "P4X web" /min "C:\py312\python.exe" -m http.server 8765
+echo [1/4] clearing stale listeners on 8765 / 8766 ...
+for /f "tokens=5" %%p in ('netstat -ano ^| findstr ":8765 :8766" ^| findstr LISTENING') do (
+    taskkill /f /pid %%p >nul 2>&1
+)
 
-rem 8766：AI 助手代理（DeepSeek，Key 只在后端）
-start "P4X AI" /min "C:\py312\python.exe" ai_bridge.py 8766
+echo [2/4] starting page server   -> http://localhost:8765
+start "P4X-web" /min "C:\py312\python.exe" -m http.server 8765
 
-timeout /t 2 >nul
+echo [3/4] starting AI bridge     -> http://127.0.0.1:8766
+start "P4X-ai" /min "C:\py312\python.exe" ai_bridge.py 8766
+
+timeout /t 3 >nul
+
+echo [4/4] opening dashboard ...
 start "" http://localhost:8765/dashboard.html
 
 echo.
-echo  面板: http://localhost:8765/dashboard.html
-echo  AI  : http://127.0.0.1:8766/health
+echo   dashboard : http://localhost:8765/dashboard.html
+echo   ai health : http://127.0.0.1:8766/health   (expect "key":true)
 echo.
-echo  两个最小化窗口都别关：
-echo    "P4X web" = 页面服务（localhost 才能用 WebSerial 连板子）
-echo    "P4X AI"  = AI 助手（没网/没 Key 时页面会提示）
-timeout /t 6 >nul
+echo   keep the two minimized windows (P4X-web / P4X-ai) open.
+echo   note: open via localhost, NOT file://  (WebSerial needs a secure context)
+timeout /t 8 >nul

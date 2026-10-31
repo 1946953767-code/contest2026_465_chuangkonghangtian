@@ -1,22 +1,15 @@
 # -*- coding: utf-8 -*-
 """P4X 答辩 AI 助手 · 本地代理（只用标准库）
 
-作用：
-  网页（p4x_web.html）里的「AI 助手」把问题发到这里，这里再去调 DeepSeek，
-  这样 **API Key 永远不会出现在网页/前端代码里**。
+作用：网页把问题发到这里，这里再调 DeepSeek —— **API Key 只在本进程内**，前端拿不到。
 
 接口：
-  GET  /health        -> {"ok":true,"key":true,"model":"deepseek-chat"}
-  POST /ask           -> {"ok":true,"answer":"...","model":"...","usage":{...}}
-       body: {"q":"问题","ctx":"最近遥测/日志片段"}
+  GET  /health   -> {"ok":true,"key":true,"model":"deepseek-chat"}
+  POST /ask      -> {"ok":true,"answer":"...","usage":{...}}
+       body: {"q":"问题","ctx":"当前遥测/控制台片段","history":[{"role","text"},...]}
 
-启动：
-  python ai_bridge.py            # 默认 127.0.0.1:8766
-  python ai_bridge.py 8766
-
-Key 来源（按顺序）：
-  1) 环境变量 DEEPSEEK_API_KEY
-  2) ~/.dsh/.credentials.yaml 里的 DEEPSEEK_API_KEY
+启动：python ai_bridge.py [port]        默认 8766
+Key ：环境变量 DEEPSEEK_API_KEY，或 ~/.dsh/.credentials.yaml
 """
 
 import json
@@ -30,19 +23,25 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 API_URL = "https://api.deepseek.com/chat/completions"
 MODEL = "deepseek-chat"
 
-SYSTEM = (
-    "你是「P4X 单芯片火箭遥测系统」的现场 AI 助手，服务对象是参赛答辩现场。\n"
-    "要求：\n"
-    "1) 回答用中文，短句，先给结论再给依据；\n"
-    "2) 只基于给定的事实与通用工程常识，不要编造没有的数据；\n"
-    "3) 涉及遥测数字时，先解释这个数字说明什么，再给建议；\n"
-    "4) 如果数据不足以判断，直说需要看哪几个量；\n"
-    "5) 单次回答不超过 180 字，除非用户要求展开。\n"
-    "背景事实：箭载端是 ESP32-S3 单芯片（MPU6050/BMP280/AHT20/GNSS GP21/TF 卡/LoRa A28），"
-    "地面站是 ESP32-P4X + openvela(NuttX) + 1024x600 MIPI-DSI；"
-    "LoRa 9600 8N1，遥测 8 Hz，full 帧 175 B、quick 帧 26 B；"
-    "姿态用互补滤波（陀螺积分 + 加速度计修正），偏航无磁力计只能相对积分。"
-)
+SYSTEM = """你是「P4X 单芯片火箭遥测系统」的现场 AI 助手，正在配合参赛队做答辩与联调。
+
+风格与能力：
+1. 中文回答，像一个懂嵌入式和火箭工程的队友：先给判断，再给依据，最后给"下一步怎么做"；
+2. 支持连续追问：把 history 视为同一场对话，接着往下说，不要每轮重新自我介绍；
+3. 会读数据：ctx 里可能有实时遥测（高度/速度/卫星/LoRa/姿态/阶段）和控制台日志，要引用具体数字；
+4. 不确定就说明"需要看哪几个量"，并列出 1-3 个具体字段，不要编造；
+5. 默认 3-5 句、150 字内；用户说"详细/展开"时才写长；
+6. 不用 Markdown 标题和代码块，用短句分号；列表最多 3 条。
+
+系统背景（可直接引用，不必复述）：
+- 箭载端：ESP32-S3 单芯片，MPU6050(六轴, I2C 40/39)、BMP280(0x77)、AHT20(0x38)、GNSS GP21 多模多频(115200, 模块 TXD→IO10)、TF 卡、LoRa A28(9600 8N1)；
+- 地面站：ESP32-P4X + openvela(NuttX)，1024x600 MIPI-DSI；任务 tchsamp(200)/p4x_gs(100)/lora_rx(110)/panel(112)；
+- 遥测：full 帧 175B@2Hz、quick 帧 26B@8Hz，9600bps 理论 960B/s，实测 455→960B/s；
+- 姿态：互补滤波（陀螺积分+加速度计修正），静止漂移已压到 0.0°/10s；偏航无磁力计只能相对积分；
+- 已知短板：单芯片无冗余、LoRa 半双工无重传、3D 界面受面板带宽限制约 2-3fps、GNSS 室内 0 星正常。
+"""
+
+MAX_HISTORY = 10
 
 
 def find_key():
@@ -73,20 +72,26 @@ def ask_deepseek(question, ctx, history=None):
 
     messages = [{"role": "system", "content": SYSTEM}]
     if ctx:
-        messages.append({"role": "system",
-                         "content": "下面是现场数据/日志片段，回答时可以参考：\n" + ctx[:4000]})
-    for h in (history or [])[-4:]:
+        messages.append({
+            "role": "system",
+            "content": "现场实时数据（供引用，不要原样复述）：\n" + ctx[:5000],
+        })
+
+    for h in (history or [])[-MAX_HISTORY:]:
         role = "assistant" if h.get("role") == "assistant" else "user"
         text = (h.get("text") or "").strip()
         if text:
             messages.append({"role": role, "content": text[:1500]})
-    messages.append({"role": "user", "content": question[:2000]})
+
+    messages.append({"role": "user", "content": question[:2500]})
 
     body = json.dumps({
         "model": MODEL,
         "messages": messages,
-        "temperature": 0.3,
-        "max_tokens": 600,
+        "temperature": 0.5,
+        "max_tokens": 900,
+        "presence_penalty": 0.2,
+        "frequency_penalty": 0.2,
     }).encode("utf-8")
 
     req = urllib.request.Request(API_URL, data=body, method="POST")
@@ -94,7 +99,7 @@ def ask_deepseek(question, ctx, history=None):
     req.add_header("Authorization", "Bearer " + KEY)
 
     try:
-        with urllib.request.urlopen(req, timeout=45) as resp:
+        with urllib.request.urlopen(req, timeout=60) as resp:
             data = json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
         detail = e.read().decode("utf-8", "replace")[:300]
@@ -106,11 +111,12 @@ def ask_deepseek(question, ctx, history=None):
         answer = data["choices"][0]["message"]["content"].strip()
     except (KeyError, IndexError):
         return None, "返回格式异常：" + json.dumps(data, ensure_ascii=False)[:200]
-    return {"answer": answer, "usage": data.get("usage", {}), "model": data.get("model", MODEL)}, None
+    return {"answer": answer, "usage": data.get("usage", {}),
+            "model": data.get("model", MODEL)}, None
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "P4XAI/1.0"
+    server_version = "P4XAI/2.0"
 
     def _cors(self):
         self.send_header("Access-Control-Allow-Origin", "*")
@@ -159,16 +165,16 @@ class Handler(BaseHTTPRequestHandler):
         else:
             self._json({"ok": True, **result})
 
-    def log_message(self, fmt, *args):                        # 安静一点
+    def log_message(self, fmt, *args):                        # 安静
         sys.stderr.write("%s - %s\n" % (self.address_string(), fmt % args))
 
 
 def main():
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8766
     srv = ThreadingHTTPServer(("127.0.0.1", port), Handler)
-    print("P4X AI bridge on http://127.0.0.1:%d  key=%s" % (port, "yes" if KEY else "NO"))
+    print("P4X AI bridge v2 on http://127.0.0.1:%d   key=%s" % (port, "yes" if KEY else "NO"))
     print("  GET  /health")
-    print("  POST /ask   {\"q\":\"...\",\"ctx\":\"...\"}")
+    print("  POST /ask  {\"q\":\"...\",\"ctx\":\"...\",\"history\":[...]}")
     try:
         srv.serve_forever()
     except KeyboardInterrupt:
