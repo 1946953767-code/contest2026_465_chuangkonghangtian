@@ -59,12 +59,52 @@
                    border-radius:6px; padding:7px 6px; font-size:13px; cursor:pointer; }
   .gsbtns button:hover { background:#2c5f7f; }
   .gsmsg { color:#7fb6d6; font-size:12px; text-align:center; }
+
+  /* ===== P4X 融合：顶栏按钮 / 抽屉 / AI 对话 ===== */
+  .topbtn { padding:8px 16px; font-size:14px; border:none; border-radius:6px; cursor:pointer;
+            font-weight:bold; margin-left:8px; }
+  #p4xBtn { background:#2c5f7f; color:#d8f1ff; }
+  #p4xBtn.ok { background:#00a86b; color:#fff; }
+  #p4xBtn.busy { background:#ff9900; color:#000; }
+  #p4xBtn.err { background:#c0392b; color:#fff; }
+  #aiBtn { background:#5a3d9e; color:#f0e8ff; }
+  #aiBtn.on { background:#7c5cff; color:#fff; }
+  .drawer { position:fixed; top:0; right:-520px; width:500px; height:100vh; z-index:60;
+            background:#0b1622; border-left:1px solid #1b4965; display:flex; flex-direction:column;
+            transition:right .22s ease; box-shadow:-14px 0 40px rgba(0,0,0,.5); }
+  .drawer.open { right:0; }
+  .drawer h4 { color:#00d4ff; font-size:14px; padding:12px 14px; border-bottom:1px solid #16324a;
+               display:flex; align-items:center; gap:10px; }
+  .drawer h4 .sp { margin-left:auto; display:flex; gap:6px; }
+  .drawer h4 button { background:#17324a; color:#bfe0ff; border:1px solid #2c5f7f; border-radius:6px;
+                      padding:4px 10px; font-size:12px; cursor:pointer; }
+  #p4xLog { flex:1; margin:0; padding:10px 12px; overflow:auto; background:#050b12; color:#9fd0c8;
+            font:12px/1.55 Consolas,'Cascadia Mono',monospace; white-space:pre-wrap; word-break:break-all; }
+  #chatWrap { flex:1; display:flex; flex-direction:column; min-height:0; }
+  #chatList { flex:1; overflow:auto; padding:12px; display:flex; flex-direction:column; gap:9px; }
+  .msg { max-width:86%; padding:9px 12px; border-radius:12px; font-size:13px; line-height:1.65;
+         white-space:pre-wrap; word-break:break-word; }
+  .msg.user { align-self:flex-end; background:#1f4d6b; color:#e8f6ff; border-bottom-right-radius:4px; }
+  .msg.bot { align-self:flex-start; background:#152a3f; color:#d7e6f2; border-bottom-left-radius:4px; }
+  .msg.err { align-self:flex-start; background:#3a1f24; color:#ffb3b3; }
+  .msg .who { display:block; font-size:10.5px; color:#6f8ea6; margin-bottom:3px; }
+  #chatBtns { display:flex; gap:6px; flex-wrap:wrap; padding:0 12px 8px; }
+  #chatBtns button { background:#17324a; color:#a9cfe6; border:1px solid #2c5f7f; border-radius:14px;
+                     padding:5px 10px; font-size:11.5px; cursor:pointer; }
+  #chatBar { display:flex; gap:8px; padding:10px 12px; border-top:1px solid #16324a; }
+  #chatIn { flex:1; background:#0f2233; border:1px solid #2c5f7f; border-radius:8px; color:#e6f2ff;
+            padding:9px 11px; font:inherit; font-size:13px; outline:none; }
+  #chatSend { background:#7c5cff; color:#fff; border:none; border-radius:8px; padding:0 16px;
+              font-weight:bold; cursor:pointer; }
+  #chatSend:disabled { opacity:.45; cursor:not-allowed; }
 </style>
 </head>
 <body>
 <div id="bar">
   <h1>创空航天</h1>
   <span class="sub">火箭遥测地面站 · 下滑查看曲线</span>
+  <button id="p4xBtn">连接 P4X 并启动</button>
+  <button id="aiBtn">AI 助手</button>
   <button id="connBtn" class="off">连接 USB</button>
 </div>
 <div id="status">
@@ -133,6 +173,45 @@
   </div>
 </div>
 <div id="scrollHint">↓ 下滑查看曲线与雷达扫描图</div>
+
+<!-- ===== P4X 控制台抽屉（连接 → 等 NSH → 拉起 p4x_gs） ===== -->
+<div id="p4xDrawer" class="drawer">
+  <h4>P4X 地面站控制台
+    <span class="sp">
+      <button id="p4xPs">查任务</button>
+      <button id="p4xRestart">重启 App</button>
+      <button id="p4xClose">收起</button>
+    </span>
+  </h4>
+  <pre id="p4xLog">点顶栏「连接 P4X 并启动」：选 303A:1001 的串口 → 等 NSH → 自动检查并拉起 p4x_gs。
+（打开串口会让板子复位一次，约 12 秒后 App 自己起来）</pre>
+</div>
+
+<!-- ===== AI 助手抽屉（多轮对话） ===== -->
+<div id="aiDrawer" class="drawer">
+  <h4>AI 助手 · 多轮问答
+    <span class="sp">
+      <button id="aiNew">新对话</button>
+      <button id="aiClose">收起</button>
+    </span>
+  </h4>
+  <div id="chatWrap">
+    <div id="chatList">
+      <div class="msg bot"><span class="who">AI</span>我在。可以直接问，也可以点下面的快捷问题。我能读到当前页面上的遥测数值（高度/速度/姿态/卫星/阶段），会结合实时数据回答，支持连续追问。</div>
+    </div>
+    <div id="chatBtns">
+      <button data-q="用当前遥测数值判断这次飞行的状态是否正常，先给结论再给依据">数据分析</button>
+      <button data-q="链路和卫星现在是什么情况？如果评委问“为什么卫星数是 0”，怎么答">链路/卫星</button>
+      <button data-q="高度数值有小幅抖动，可能的原因有哪些？怎么用数据验证">高度抖动</button>
+      <button data-q="这套方案相比商用遥测系统最大短板，现场怎么解释才不扣分">最大短板</button>
+      <button data-q="把刚才的分析浓缩成三句话，我要直接讲给评委">压缩成三句</button>
+    </div>
+    <div id="chatBar">
+      <input id="chatIn" placeholder="继续追问，例如：那这个抖动会影响到伞降判断吗？">
+      <button id="chatSend">发送</button>
+    </div>
+  </div>
+</div>
 
 <script>
 const canvas = {
@@ -993,6 +1072,230 @@ setTimeout(()=>{
   }
   */
 }, 3000);
+
+/* =====================================================================
+ * P4X 融合模块：① 连接 P4X 并启动  ② AI 多轮问答
+ * 说明：AI 走本地代理 http://127.0.0.1:8766（Key 只在后端，前端拿不到）
+ * ===================================================================== */
+
+/* ---------- 抽屉开关 ---------- */
+const p4xDrawer = document.getElementById('p4xDrawer');
+const aiDrawer  = document.getElementById('aiDrawer');
+document.getElementById('p4xBtn').addEventListener('click', () => {
+  p4xDrawer.classList.toggle('open');
+  aiDrawer.classList.remove('open');
+  if (!p4xConnected) p4xConnect();
+});
+document.getElementById('aiBtn').addEventListener('click', () => {
+  aiDrawer.classList.toggle('open');
+  p4xDrawer.classList.remove('open');
+  if (aiDrawer.classList.contains('open')) setTimeout(() => document.getElementById('chatIn').focus(), 220);
+});
+document.getElementById('p4xClose').addEventListener('click', () => p4xDrawer.classList.remove('open'));
+document.getElementById('aiClose').addEventListener('click', () => aiDrawer.classList.remove('open'));
+
+/* ---------- ① 连接 P4X：选口 → 等 NSH → 检查/拉起 p4x_gs ---------- */
+let p4xPort = null, p4xWriter = null, p4xReader = null, p4xConnected = false;
+const p4xLogEl = document.getElementById('p4xLog');
+
+function p4xLog(msg) {
+  p4xLogEl.textContent += '\n' + msg;
+  p4xLogEl.scrollTop = p4xLogEl.scrollHeight;
+}
+function p4xState(cls, text) {
+  const b = document.getElementById('p4xBtn');
+  b.className = cls; b.textContent = text;
+}
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+async function p4xWrite(s) {
+  if (!p4xWriter) return;
+  await p4xWriter.write(new TextEncoder().encode(s + '\r\n'));
+}
+
+async function p4xConnect() {
+  if (p4xConnected) { p4xDrawer.classList.add('open'); return; }
+  if (!('serial' in navigator)) {
+    p4xLog('这个浏览器不支持 WebSerial，用 Chrome/Edge 打开；并且要用 http://localhost 而不是 file://');
+    p4xState('err', '不支持 WebSerial');
+    return;
+  }
+  try {
+    p4xState('busy', '选择串口…');
+    p4xLog('请在弹出的列表里选 ESP32-P4（303A:1001，通常显示为 USB 设备）');
+    p4xPort = await navigator.serial.requestPort({ filters: [{ usbVendorId: 0x303A }] });
+    await p4xPort.open({ baudRate: 115200 });
+    p4xWriter = p4xPort.writable.getWriter();
+    p4xConnected = true;
+    p4xState('busy', '等待 NSH…');
+    p4xLog('已打开串口。开串口会让板子复位一次，等它自己起来（约 12 秒）…');
+
+    // 起一个读线程，把输出打到抽屉里，同时检测 nsh>
+    p4xReader = p4xPort.readable.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    const t0 = Date.now();
+    (async () => {
+      try {
+        while (true) {
+          const { value, done } = await p4xReader.read();
+          if (done) break;
+          const s = dec.decode(value, { stream: true });
+          buf += s;
+          p4xLogEl.textContent += s.replace(/\r/g, '');
+          p4xLogEl.scrollTop = p4xLogEl.scrollHeight;
+          if (buf.length > 8000) buf = buf.slice(-4000);
+        }
+      } catch (e) { /* 断开 */ }
+    })();
+
+    // 等 NSH，最多 40 秒
+    await p4xWrite('');
+    while (Date.now() - t0 < 40000) {
+      if (/nsh>\s*$/.test(buf) || /NuttShell/.test(buf)) break;
+      await sleep(500);
+      await p4xWrite('');
+    }
+    if (!/nsh>|NuttShell/.test(buf)) {
+      p4xState('err', 'NSH 未响应');
+      p4xLog('没等到 NSH。检查：串口是否选错、板子是否上电、有没有被其它程序占用。');
+      return;
+    }
+
+    p4xLog('NSH 已就绪，检查 p4x_gs …');
+    p4xState('busy', '检查 App…');
+    await p4xWrite('ps');
+    await sleep(2000);
+    const tail = buf.slice(-4000);
+    if (/\bp4x_gs\b/.test(tail) && /Task/.test(tail)) {
+      p4xLog('p4x_gs 已在运行。');
+    } else {
+      p4xLog('p4x_gs 没在跑，拉起它：p4x_gs &');
+      await p4xWrite('p4x_gs &');
+      await sleep(3000);
+    }
+    p4xState('ok', 'P4X 已就绪');
+    p4xLog('完成。可以开始演示。');
+  } catch (e) {
+    p4xState('err', '连接失败');
+    p4xLog('连接失败：' + (e && e.message ? e.message : e));
+  }
+}
+
+document.getElementById('p4xPs').addEventListener('click', async () => {
+  if (!p4xConnected) { p4xLog('还没连上 P4X。'); return; }
+  await p4xWrite('ps');
+  await sleep(1800);
+});
+document.getElementById('p4xRestart').addEventListener('click', async () => {
+  if (!p4xConnected) { p4xLog('还没连上 P4X。'); return; }
+  p4xLog('重启 App：kill 旧 pid → 重新拉起来');
+  const mark = p4xLogEl.textContent.length;
+  await p4xWrite('ps');
+  await sleep(1800);
+  const out = p4xLogEl.textContent.slice(mark);
+  const m = out.match(/^\s*(\d+)\s+\d+\s+\d+\s+\w+\s+\w+.*?\bp4x_gs\b/m);
+  if (m) { await p4xWrite('kill ' + m[1]); await sleep(1200); }
+  await p4xWrite('p4x_gs &');
+  await sleep(2500);
+  p4xLog('已重启。');
+});
+
+/* ---------- ② AI 多轮问答 ---------- */
+const AI_URL = 'http://127.0.0.1:8766';
+const chatList = document.getElementById('chatList');
+const chatIn = document.getElementById('chatIn');
+const chatSend = document.getElementById('chatSend');
+let aiHistory = [];      // [{role:'user'|'assistant', text}]
+let aiBusy = false;
+
+document.getElementById('aiBtn').addEventListener('click', () => {
+  fetch(AI_URL + '/health', { cache: 'no-store' })
+    .then(r => r.json())
+    .then(j => {
+      document.getElementById('aiBtn').classList.toggle('on', !!j.key);
+      if (!j.key) aiBubble('bot', 'AI 服务在线，但后端没配 Key（环境变量或 ~/.dsh/.credentials.yaml）。');
+    })
+    .catch(() => aiBubble('err', '连不上 AI 服务。请先双击 web 目录里的「启动助手.bat」（它会起 8766 代理），再刷新本页。'));
+});
+
+function aiBubble(role, text) {
+  const d = document.createElement('div');
+  d.className = 'msg ' + (role === 'user' ? 'user' : role === 'err' ? 'err' : 'bot');
+  const who = document.createElement('span');
+  who.className = 'who';
+  who.textContent = role === 'user' ? '我' : role === 'err' ? '系统' : 'AI';
+  d.appendChild(who);
+  d.appendChild(document.createTextNode(text));
+  chatList.appendChild(d);
+  chatList.scrollTop = chatList.scrollHeight;
+  return d;
+}
+
+// 把页面上的实时数值整理成上下文，喂给模型
+function aiSnapshot() {
+  const g = id => (document.getElementById(id) || {}).textContent || '--';
+  const lines = [
+    '【当前遥测】',
+    '高度(m): ' + g('altVal'),
+    '速度(m/s): ' + g('velVal'),
+    '卫星数: ' + g('satVal'),
+    '阶段: ' + g('phaseVal'),
+    'T+ (s): ' + g('timeVal'),
+    'LoRa: ' + (document.getElementById('loraDot').style.background.includes('00ff') ? '通' : '断'),
+  ];
+  try {
+    if (typeof data === 'object' && data) {
+      lines.push('内部状态: pitch=' + (data.pitch ?? '-') + ' roll=' + (data.roll ?? '-') +
+                 ' yaw=' + (data.yaw ?? '-') + ' ax=' + (data.ax ?? '-') +
+                 ' ay=' + (data.ay ?? '-') + ' az=' + (data.az ?? '-'));
+    }
+  } catch (e) {}
+  if (typeof p4xLogEl !== 'undefined' && p4xLogEl && p4xLogEl.textContent) {
+    lines.push('【P4X 控制台尾部】', p4xLogEl.textContent.slice(-1200));
+  }
+  return lines.join('\n');
+}
+
+async function aiAsk(q) {
+  q = (q || '').trim();
+  if (!q || aiBusy) return;
+  aiBusy = true; chatSend.disabled = true;
+  aiBubble('user', q);
+  const pending = aiBubble('bot', '思考中…');
+  try {
+    const r = await fetch(AI_URL + '/ask', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ q, ctx: aiSnapshot(), history: aiHistory.slice(-6) })
+    });
+    const j = await r.json();
+    pending.remove();
+    if (j.ok) {
+      aiBubble('bot', j.answer);
+      aiHistory.push({ role: 'user', text: q }, { role: 'assistant', text: j.answer });
+      if (aiHistory.length > 20) aiHistory = aiHistory.slice(-20);
+    } else {
+      aiBubble('err', '调用失败：' + (j.error || '未知错误'));
+    }
+  } catch (e) {
+    pending.remove();
+    aiBubble('err', '连不上 AI 服务（8766）。先运行「启动助手.bat」，再刷新。');
+  } finally {
+    aiBusy = false; chatSend.disabled = false; chatIn.value = '';
+  }
+}
+
+chatSend.addEventListener('click', () => aiAsk(chatIn.value));
+chatIn.addEventListener('keydown', e => { if (e.key === 'Enter') aiAsk(chatIn.value); });
+document.querySelectorAll('#chatBtns button').forEach(b => {
+  b.addEventListener('click', () => aiAsk(b.dataset.q));
+});
+document.getElementById('aiNew').addEventListener('click', () => {
+  aiHistory = [];
+  chatList.innerHTML = '';
+  aiBubble('bot', '新对话开始。');
+});
 </script>
 </body>
 </html>
