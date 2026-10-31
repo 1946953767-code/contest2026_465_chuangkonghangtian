@@ -1176,6 +1176,7 @@ async function p4xConnect() {
     }
     p4xState('ok', 'P4X 已就绪');
     p4xLog('完成。可以开始演示。');
+    autoStartAI();
   } catch (e) {
     p4xState('err', '连接失败');
     p4xLog('连接失败：' + (e && e.message ? e.message : e));
@@ -1296,6 +1297,31 @@ document.getElementById('aiNew').addEventListener('click', () => {
   chatList.innerHTML = '';
   aiBubble('bot', '新对话开始。');
 });
+
+/* ---------- ③ 连上 P4X 后自动拉起 AI 并给一句话状态 ---------- */
+let aiAutoStarted = false;
+async function autoStartAI() {
+  if (aiAutoStarted) return;
+  aiAutoStarted = true;
+
+  aiDrawer.classList.add('open');
+  p4xDrawer.classList.remove('open');
+
+  const hint = aiBubble('bot', '正在启动 AI 助手…');
+  try {
+    const r = await fetch(AI_URL + '/health', { cache: 'no-store' });
+    const j = await r.json();
+    document.getElementById('aiBtn').classList.add('on');
+    if (!j.key) {
+      hint.textContent = 'AI 服务在线，但后端没配 Key（环境变量 DEEPSEEK_API_KEY 或 ~/.dsh/.credentials.yaml）。';
+      return;
+    }
+    hint.remove();
+    aiAsk('我刚把 P4X 地面站连上并确认 p4x_gs 在运行。用当前遥测值给我一句话状态，再指出现在最该注意的一个点。');
+  } catch (e) {
+    hint.textContent = 'P4X 已连上，但 AI 服务没起（8766）。双击 web 目录里的「启动助手.bat」，然后刷新本页。';
+  }
+}
 </script>
 </body>
 </html>
