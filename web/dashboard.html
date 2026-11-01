@@ -292,6 +292,14 @@ async function readLoop() {
           while ((idx = buf.indexOf('\n')) >= 0) {
             const line = buf.slice(0, idx).trim();
             buf = buf.slice(idx + 1);
+            // P4X-CONSOLE：把原始行也喂给右侧「控制台」抽屉（复用同一条串口）
+            if (p4xLogEl) {
+              p4xLogEl.textContent += line + '\n';
+              if (p4xLogEl.textContent.length > 20000) {
+                p4xLogEl.textContent = p4xLogEl.textContent.slice(-12000);
+              }
+              p4xLogEl.scrollTop = p4xLogEl.scrollHeight;
+            }
             // P4X-ANYJSON：JSON 不一定在行首 —— 板子上的 app 是直接写
             // /dev/console 的，NSH 提示符会跟它粘在同一行（"nsh> {...}"）。
             // 所以这里把行内所有完整的 {...} 段都抠出来解析，而不是只看行首。
@@ -407,7 +415,8 @@ function parseJSON(line) {
   document.getElementById('timeVal').textContent = data.gpsTime !== 'NO_TIME' ? data.gpsTime : data.t.toFixed(1);
   document.getElementById('altVal').textContent = Math.round(data.alt);
   document.getElementById('velVal').textContent = Math.round(data.v);
-  const ph = ['待发','点火确认','点火','飞行','任务结束','灭火'][data.phase] || data.phase;
+  // 阶段：0 待命 / 1 准备 / 2 点火（显示"飞行"）/ 3 灭火 / 4 结束
+  const ph = ['待命', '准备', '飞行', '灭火', '结束'][data.phase] || data.phase;
   document.getElementById('phaseVal').textContent = ph;
 }
 
@@ -659,37 +668,140 @@ function drawChart(cvId, series) {
 }
 
 function drawAttitude() {
+  // P4X-HORIZON: 做成"人工地平仪"——天空/地面随姿态滚动，带俯仰刻度梯、
+  // 滚转刻度弧、固定机体符号和数字读数。
   const g = ctx.att, W = canvas.att.width, H = canvas.att.height;
-  g.clearRect(0,0,W,H);
-  const cx=W/2, cy=H/2, R=Math.min(W,H)/2 - 8;
-  const roll = data.roll*Math.PI/180;
-  const hy = cy - data.pitch*2.5;   // 俯仰移动地平线
-  // 天空/地面 (倾斜)
-  const cs=Math.cos(roll), sn=Math.sin(roll);
+  g.clearRect(0, 0, W, H);
+
+  const cx = W / 2, cy = H / 2;
+  const R = Math.min(W, H) / 2 - 10;
+  const D2R = Math.PI / 180;
+  const pitch = data.pitch || 0;
+  const rollDeg = data.roll || 0;
+  const roll = rollDeg * D2R;
+  const PX_PER_DEG = Math.max(2.0, R / 28);   // 每度俯仰对应的像素（约 ±28° 视野）
+
   g.save();
-  g.translate(cx, cy); g.rotate(roll); g.translate(-cx, -hy);
-  g.fillStyle='#1e6fd9'; g.fillRect(0,0,W,Math.max(0,hy));   // 天空
-  g.fillStyle='#7a5230'; g.fillRect(0,Math.max(0,hy),W,H-hy); // 地面
-  g.restore();
-  // 地平线
-  g.strokeStyle='#00ffff'; g.lineWidth=3;
-  g.beginPath(); g.moveTo(0,hy); g.lineTo(W,hy); g.stroke();
-  // 圆框
+  g.beginPath();
+  g.arc(cx, cy, R, 0, Math.PI * 2);
+  g.clip();
+
+  // ---- 天空 / 地面（整体随滚转旋转、随俯仰平移）----
   g.save();
-  g.beginPath(); g.arc(cx,cy,R,0,2*Math.PI); g.clip();
-  g.beginPath(); g.arc(cx,cy,R,0,2*Math.PI);
-  g.fillStyle='transparent';
-  g.strokeStyle='#fff'; g.lineWidth=4; g.stroke();
-  // 中心固定十字 (火箭)
-  g.strokeStyle='#fff'; g.lineWidth=2;
-  g.beginPath(); g.moveTo(cx-R+10,cy); g.lineTo(cx-10,cy);
-  g.moveTo(cx+10,cy); g.lineTo(cx+R-10,cy); g.stroke();
+  g.translate(cx, cy);
+  g.rotate(roll);
+  const hy = pitch * PX_PER_DEG;              // 地平线相对圆心的偏移
+  g.fillStyle = '#1a6fd4';
+  g.fillRect(-W, -H * 2 + hy, W * 2, H * 2);
+  g.fillStyle = '#8a5a2b';
+  g.fillRect(-W, hy, W * 2, H * 2);
+
+  // ---- 俯仰刻度梯（每 5° 一条短线，每 10° 带数字）----
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  for (let a = -60; a <= 60; a += 5) {
+    if (a === 0) continue;
+    const y = hy - a * PX_PER_DEG;
+    if (Math.abs(y) > H) continue;
+    const major = (a % 10 === 0);
+    const halfLen = major ? R * 0.30 : R * 0.16;
+    g.strokeStyle = 'rgba(255,255,255,' + (major ? 0.95 : 0.55) + ')';
+    g.lineWidth = major ? 2 : 1;
+    g.beginPath();
+    g.moveTo(-halfLen, y);
+    g.lineTo(halfLen, y);
+    g.stroke();
+    if (major) {
+      g.fillStyle = 'rgba(255,255,255,0.95)';
+      g.font = '12px Consolas,monospace';
+      g.fillText(String(Math.abs(a)), halfLen + 16, y);
+      g.fillText(String(Math.abs(a)), -halfLen - 16, y);
+    }
+  }
+
+  // ---- 地平线 ----
+  g.strokeStyle = '#00ffff';
+  g.lineWidth = 2.5;
+  g.beginPath();
+  g.moveTo(-W, hy);
+  g.lineTo(W, hy);
+  g.stroke();
   g.restore();
-  // 火箭
-  g.fillStyle='#ff8c00';
-  g.fillRect(cx-4,cy-12,8,24);
-  g.fillStyle='#ff3333';
-  g.beginPath(); g.moveTo(cx-3,cy+12); g.lineTo(cx,cy+22); g.lineTo(cx+3,cy+12); g.fill();
+
+  // ---- 滚转刻度弧（固定，不随姿态旋转）----
+  g.save();
+  g.translate(cx, cy);
+  g.strokeStyle = 'rgba(255,255,255,0.9)';
+  g.lineWidth = 2;
+  g.beginPath();
+  g.arc(0, 0, R - 6, -Math.PI * 0.75, -Math.PI * 0.25);
+  g.stroke();
+  for (let a = -60; a <= 60; a += 10) {
+    const t = (a - 90) * D2R;               // 顶部为 0
+    const long = (a % 30 === 0);
+    const r1 = R - 6, r2 = r1 - (long ? 14 : 8);
+    g.beginPath();
+    g.moveTo(Math.cos(t) * r1, Math.sin(t) * r1);
+    g.lineTo(Math.cos(t) * r2, Math.sin(t) * r2);
+    g.stroke();
+  }
+  // 滚转指针（指在当前滚转角对应的弧上）
+  const ptr = (-90 + rollDeg) * D2R;
+  g.fillStyle = '#ffcc00';
+  g.beginPath();
+  g.moveTo(Math.cos(ptr) * (R - 20), Math.sin(ptr) * (R - 20));
+  g.lineTo(Math.cos(ptr - 0.045) * (R - 4), Math.sin(ptr - 0.045) * (R - 4));
+  g.lineTo(Math.cos(ptr + 0.045) * (R - 4), Math.sin(ptr + 0.045) * (R - 4));
+  g.closePath();
+  g.fill();
+  g.restore();
+
+  // ---- 固定机体符号（黄色小飞机）----
+  g.strokeStyle = '#ffb020';
+  g.lineWidth = 4;
+  g.lineCap = 'round';
+  g.beginPath();
+  g.moveTo(cx - R * 0.42, cy);
+  g.lineTo(cx - R * 0.12, cy);
+  g.moveTo(cx + R * 0.12, cy);
+  g.lineTo(cx + R * 0.42, cy);
+  g.stroke();
+  g.beginPath();
+  g.moveTo(cx, cy - 5);
+  g.lineTo(cx, cy + 5);
+  g.stroke();
+  g.fillStyle = '#ffb020';
+  g.beginPath();
+  g.arc(cx, cy, 3.2, 0, Math.PI * 2);
+  g.fill();
+
+  g.restore();   // 解除圆形裁剪
+
+  // ---- 外圈 ----
+  g.strokeStyle = 'rgba(255,255,255,0.85)';
+  g.lineWidth = 3;
+  g.beginPath();
+  g.arc(cx, cy, R, 0, Math.PI * 2);
+  g.stroke();
+
+  // ---- 数字读数 ----
+  g.fillStyle = 'rgba(0,0,0,0.45)';
+  g.fillRect(8, 8, 118, 44);
+  g.textAlign = 'left';
+  g.textBaseline = 'top';
+  g.fillStyle = '#00e0ff';
+  g.font = 'bold 15px Consolas,monospace';
+  g.fillText('P ' + pitch.toFixed(1) + '°', 16, 14);
+  g.fillStyle = '#ffcc00';
+  g.fillText('R ' + rollDeg.toFixed(1) + '°', 16, 34);
+
+  if (typeof data.yaw === 'number') {
+    g.fillStyle = 'rgba(0,0,0,0.45)';
+    g.fillRect(W - 126, 8, 118, 26);
+    g.fillStyle = '#9fe8ff';
+    g.font = 'bold 15px Consolas,monospace';
+    g.fillText('Y ' + data.yaw.toFixed(1) + '°', W - 118, 14);
+  }
 }
 
 // ---- 雷达扫描图：同心距离圆盘 + 扫描线 + 火箭坐标点 + 悬停详情 ----
@@ -1098,9 +1210,9 @@ setTimeout(()=>{
 const p4xDrawer = document.getElementById('p4xDrawer');
 const aiDrawer  = document.getElementById('aiDrawer');
 document.getElementById('p4xMini').addEventListener('click', () => {
+  // 只开关抽屉，不再弹第二次选口（控制台复用主连接的那条串口）
   p4xDrawer.classList.toggle('open');
   aiDrawer.classList.remove('open');
-  if (!p4xConnected) p4xConnect();
 });
 document.getElementById('aiBtn').addEventListener('click', () => {
   aiDrawer.classList.toggle('open');
@@ -1125,9 +1237,23 @@ function p4xState(cls, text) {
 }
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-async function p4xWrite(s) {
-  if (!p4xWriter) return;
-  await p4xWriter.write(new TextEncoder().encode(s + '\r\n'));
+async function p4xWrite(cmd) {
+  // P4X-ONEPORT：控制台复用主连接（顶栏「连接 P4X」开的那条串口），
+  // 不再单独 requestPort —— 否则会二次弹选口、而且两条串口不能同时开同一个设备。
+  if (!port || !port.writable) {
+    p4xLog('还没连上板子，先点顶栏「连接 P4X」。');
+    return false;
+  }
+  try {
+    const w = port.writable.getWriter();
+    await w.write(new TextEncoder().encode(cmd + '\r\n'));
+    w.releaseLock();
+    p4xLog('→ ' + cmd);
+    return true;
+  } catch (e) {
+    p4xLog('写串口失败：' + e.message);
+    return false;
+  }
 }
 
 async function p4xConnect() {
@@ -1201,12 +1327,10 @@ async function p4xConnect() {
 }
 
 document.getElementById('p4xPs').addEventListener('click', async () => {
-  if (!p4xConnected) { p4xLog('还没连上 P4X。'); return; }
   await p4xWrite('ps');
-  await sleep(1800);
+  await sleep(1500);
 });
 document.getElementById('p4xRestart').addEventListener('click', async () => {
-  if (!p4xConnected) { p4xLog('还没连上 P4X。'); return; }
   p4xLog('重启 App：kill 旧 pid → 重新拉起来');
   const mark = p4xLogEl.textContent.length;
   await p4xWrite('ps');
