@@ -113,7 +113,17 @@
       "file_path": "logs/1946953767-code/2026-09-13/dsh__e4aa8bbe-a777-492e-98a2-9dd35bd7b6df.jsonl",
       "collection_mode": "cli",
       "health": "ok"
+    },
+    {
+      "session_id": "session-f50a0abc-0cfd-44d7-b5a7-56b3a1e2970a",
+      "tool": "dsh",
+      "started_at": "2026-10-19T15:42:56+08:00",
+      "last_event_at": "2026-11-02T00:49:37+08:00",
+      "event_count": 4349,
+      "file_path": "logs/1946953767-code/2026-10-19/dsh__f50a0abc-0cfd-44d7-b5a7-56b3a1e2970a.jsonl",
+      "collection_mode": "cli",
+      "health": "ok"
     }
   ],
-  "updated_at": "2026-09-17T00:56:30+08:00"
+  "updated_at": "2026-11-02T00:50:40+08:00"
 }

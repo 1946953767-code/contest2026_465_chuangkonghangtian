@@ -25,7 +25,7 @@ logs/
 
 1. **按组委会要求的结构提交日志**：由 DSH 会话记录逐条转换而来，字段对齐手册第四节
    （`text` / `thinking` / `tool_name,input,output` / `model` / `seq`），`seq` 为会话内递增
-   序号且无断档。共 **11 个会话、19194 条事件**。对话正文与工具调用**原样搬运，未做改写或
+   序号且无断档。共 **12 个会话、23543 条事件**。对话正文与工具调用**原样搬运，未做改写或
    摘要**，仅过滤了系统自动注入的运行环境提示块（Current runtime context / system-reminder
    等并非人说的话的块），过滤条数记录在转换脚本的运行输出中。
    转换脚本在仓库内，可重跑复核：`tools/ai_logs/export_official_logs.js`。

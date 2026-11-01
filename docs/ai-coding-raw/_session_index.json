@@ -1018,5 +1018,27 @@
         1
       ]
     ]
+  },
+  {
+    "id": "session-f50a0abc-0cfd-44d7-b5a7-56b3a1e2970a",
+    "title": "联调日：GNSS/高度/姿态/网页/AI 助手",
+    "createdAt": "1793494800000",
+    "mtime": "2026-11-02T00:49",
+    "zstdBytes": 7983671,
+    "expandedBytes": 26294342,
+    "exportedBytes": 0,
+    "users": 202,
+    "assistants": 1631,
+    "toolCalls": 1577,
+    "toolResults": 1593,
+    "truncatedItems": 0,
+    "included": true,
+    "note": "10-19～11-02 跨日会话（主体 10-31、11-01）：GP21 接线/质量码、高度融合改卡尔曼、姿态轴与偏航、console 阻塞、网页与 AI 助手",
+    "topTools": [
+      [
+        "?",
+        1577
+      ]
+    ]
   }
 ]
