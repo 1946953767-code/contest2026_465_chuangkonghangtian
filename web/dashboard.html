@@ -418,6 +418,7 @@ function parseJSON(line) {
            yaw:(d.yaw===undefined?(d.y||0):d.yaw),
            ax:d.ax||0, ay:d.ay||0, az:d.az||0,
            sat:d.sat||0, satv:(d.satv===undefined?null:d.satv),
+           q:(d.q===undefined?'':String(d.q)),
            phase:d.phase||0,
            lora:(d.lora===undefined?1:d.lora), temp:d.temp||0, press:d.press||0,
            // rlink：箭载端自报"它能不能收到思澈的回包"（1=通 0=断 -1/undefined=未知）
@@ -437,10 +438,20 @@ function parseJSON(line) {
   }
   // 收到遥测即恢复绿灯（不再由数据内容判定，避免闪红）
   document.getElementById('loraDot').style.background = '#00ff88';
-  document.getElementById('satVal').textContent =
-    (data.satv !== null && data.satv !== undefined && data.satv !== data.sat)
-      ? (data.sat + ' / ' + data.satv)       // 参与定位 / 视野内
-      : data.sat;
+  // 卫星：参与定位数（视野内更多时显示 参与/可见），并标出定位质量
+  {
+    const Q = { '0':'无定位', '1':'单点', '2':'差分', '4':'RTK固定', '5':'RTK浮点', '6':'估算' };
+    const qs = Q[data.q] || '';
+    let txt = String(data.sat);
+    if (data.satv !== null && data.satv !== undefined && data.satv > data.sat) {
+      txt += ' / ' + data.satv;          // 参与 / 可见
+    }
+    if (qs) txt += ' · ' + qs;
+    const el = document.getElementById('satVal');
+    el.textContent = txt;
+    el.style.color = (data.q === '1' || data.q === '2' || data.q === '4' || data.q === '5')
+                     ? '#00ff88' : (data.q === '6' ? '#ffb454' : '#ff6b6b');
+  }
   document.getElementById('timeVal').textContent = data.gpsTime !== 'NO_TIME' ? data.gpsTime : data.t.toFixed(1);
   document.getElementById('altVal').textContent = Math.round(data.alt);
   document.getElementById('velVal').textContent = Math.round(data.v);
