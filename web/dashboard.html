@@ -692,35 +692,35 @@ function drawChart(cvId, series) {
 }
 
 function drawAttitude() {
-  // P4X-HORIZON: 做成"人工地平仪"——天空/地面随姿态滚动，带俯仰刻度梯、
-  // 滚转刻度弧、固定机体符号和数字读数。
+  // P4X-HORIZON2: 方形人工地平仪（铺满面板），带俯仰刻度梯、滚转刻度弧、数字读数。
   const g = ctx.att, W = canvas.att.width, H = canvas.att.height;
   g.clearRect(0, 0, W, H);
 
   const cx = W / 2, cy = H / 2;
-  const R = Math.min(W, H) / 2 - 10;
+  const hw = W / 2, hh = H / 2;              // 方形半宽/半高
   const D2R = Math.PI / 180;
   const pitch = data.pitch || 0;
   const rollDeg = data.roll || 0;
   const roll = rollDeg * D2R;
-  const PX_PER_DEG = Math.max(2.0, R / 28);   // 每度俯仰对应的像素（约 ±28° 视野）
+  const PX_PER_DEG = Math.max(2.0, hh / 26); // 约 ±26° 视野
 
   g.save();
+  // 方形裁剪
   g.beginPath();
-  g.arc(cx, cy, R, 0, Math.PI * 2);
+  g.rect(2, 2, W - 4, H - 4);
   g.clip();
 
-  // ---- 天空 / 地面（整体随滚转旋转、随俯仰平移）----
+  // ---- 天空 / 地面 ----
   g.save();
   g.translate(cx, cy);
   g.rotate(roll);
-  const hy = pitch * PX_PER_DEG;              // 地平线相对圆心的偏移
+  const hy = pitch * PX_PER_DEG;
   g.fillStyle = '#1a6fd4';
-  g.fillRect(-W, -H * 2 + hy, W * 2, H * 2);
+  g.fillRect(-W * 1.5, -H * 3 + hy, W * 3, H * 3);
   g.fillStyle = '#8a5a2b';
-  g.fillRect(-W, hy, W * 2, H * 2);
+  g.fillRect(-W * 1.5, hy, W * 3, H * 3);
 
-  // ---- 俯仰刻度梯（每 5° 一条短线，每 10° 带数字）----
+  // ---- 俯仰刻度梯：每 5° 一条，每 10° 带数字 ----
   g.textAlign = 'center';
   g.textBaseline = 'middle';
   for (let a = -60; a <= 60; a += 5) {
@@ -728,8 +728,8 @@ function drawAttitude() {
     const y = hy - a * PX_PER_DEG;
     if (Math.abs(y) > H) continue;
     const major = (a % 10 === 0);
-    const halfLen = major ? R * 0.30 : R * 0.16;
-    g.strokeStyle = 'rgba(255,255,255,' + (major ? 0.95 : 0.55) + ')';
+    const halfLen = major ? hw * 0.34 : hw * 0.17;
+    g.strokeStyle = 'rgba(255,255,255,' + (major ? 0.95 : 0.5) + ')';
     g.lineWidth = major ? 2 : 1;
     g.beginPath();
     g.moveTo(-halfLen, y);
@@ -737,94 +737,93 @@ function drawAttitude() {
     g.stroke();
     if (major) {
       g.fillStyle = 'rgba(255,255,255,0.95)';
-      g.font = '12px Consolas,monospace';
-      g.fillText(String(Math.abs(a)), halfLen + 16, y);
-      g.fillText(String(Math.abs(a)), -halfLen - 16, y);
+      g.font = 'bold 13px Consolas,monospace';
+      g.fillText(String(Math.abs(a)), halfLen + 18, y);
+      g.fillText(String(Math.abs(a)), -halfLen - 18, y);
     }
   }
 
   // ---- 地平线 ----
   g.strokeStyle = '#00ffff';
-  g.lineWidth = 2.5;
+  g.lineWidth = 3;
   g.beginPath();
-  g.moveTo(-W, hy);
-  g.lineTo(W, hy);
+  g.moveTo(-W * 1.5, hy);
+  g.lineTo(W * 1.5, hy);
   g.stroke();
   g.restore();
 
-  // ---- 滚转刻度弧（固定，不随姿态旋转）----
+  // ---- 滚转刻度弧（顶部，固定）----
   g.save();
   g.translate(cx, cy);
+  const rArc = Math.min(hw, hh) * 0.92;
   g.strokeStyle = 'rgba(255,255,255,0.9)';
   g.lineWidth = 2;
   g.beginPath();
-  g.arc(0, 0, R - 6, -Math.PI * 0.75, -Math.PI * 0.25);
+  g.arc(0, 0, rArc, -Math.PI * 0.78, -Math.PI * 0.22);
   g.stroke();
   for (let a = -60; a <= 60; a += 10) {
-    const t = (a - 90) * D2R;               // 顶部为 0
+    const t = (a - 90) * D2R;
     const long = (a % 30 === 0);
-    const r1 = R - 6, r2 = r1 - (long ? 14 : 8);
+    const r1 = rArc, r2 = r1 - (long ? 16 : 9);
     g.beginPath();
     g.moveTo(Math.cos(t) * r1, Math.sin(t) * r1);
     g.lineTo(Math.cos(t) * r2, Math.sin(t) * r2);
     g.stroke();
   }
-  // 滚转指针（指在当前滚转角对应的弧上）
+  // 滚转指针
   const ptr = (-90 + rollDeg) * D2R;
   g.fillStyle = '#ffcc00';
   g.beginPath();
-  g.moveTo(Math.cos(ptr) * (R - 20), Math.sin(ptr) * (R - 20));
-  g.lineTo(Math.cos(ptr - 0.045) * (R - 4), Math.sin(ptr - 0.045) * (R - 4));
-  g.lineTo(Math.cos(ptr + 0.045) * (R - 4), Math.sin(ptr + 0.045) * (R - 4));
+  g.moveTo(Math.cos(ptr) * (rArc - 24), Math.sin(ptr) * (rArc - 24));
+  g.lineTo(Math.cos(ptr - 0.05) * (rArc - 2), Math.sin(ptr - 0.05) * (rArc - 2));
+  g.lineTo(Math.cos(ptr + 0.05) * (rArc - 2), Math.sin(ptr + 0.05) * (rArc - 2));
   g.closePath();
   g.fill();
   g.restore();
 
-  // ---- 固定机体符号（黄色小飞机）----
+  // ---- 固定机体符号 ----
   g.strokeStyle = '#ffb020';
-  g.lineWidth = 4;
+  g.lineWidth = 5;
   g.lineCap = 'round';
   g.beginPath();
-  g.moveTo(cx - R * 0.42, cy);
-  g.lineTo(cx - R * 0.12, cy);
-  g.moveTo(cx + R * 0.12, cy);
-  g.lineTo(cx + R * 0.42, cy);
+  g.moveTo(cx - hw * 0.45, cy);
+  g.lineTo(cx - hw * 0.13, cy);
+  g.moveTo(cx + hw * 0.13, cy);
+  g.lineTo(cx + hw * 0.45, cy);
   g.stroke();
   g.beginPath();
-  g.moveTo(cx, cy - 5);
-  g.lineTo(cx, cy + 5);
+  g.moveTo(cx, cy - 6);
+  g.lineTo(cx, cy + 6);
   g.stroke();
   g.fillStyle = '#ffb020';
   g.beginPath();
-  g.arc(cx, cy, 3.2, 0, Math.PI * 2);
+  g.arc(cx, cy, 3.5, 0, Math.PI * 2);
   g.fill();
 
-  g.restore();   // 解除圆形裁剪
+  g.restore();   // 解除方形裁剪
 
-  // ---- 外圈 ----
-  g.strokeStyle = 'rgba(255,255,255,0.85)';
-  g.lineWidth = 3;
-  g.beginPath();
-  g.arc(cx, cy, R, 0, Math.PI * 2);
-  g.stroke();
+  // ---- 外框 ----
+  g.strokeStyle = 'rgba(255,255,255,0.8)';
+  g.lineWidth = 2;
+  g.strokeRect(1, 1, W - 2, H - 2);
 
   // ---- 数字读数 ----
-  g.fillStyle = 'rgba(0,0,0,0.45)';
-  g.fillRect(8, 8, 118, 44);
+  g.fillStyle = 'rgba(0,0,0,0.5)';
+  g.fillRect(10, 10, 132, 52);
   g.textAlign = 'left';
   g.textBaseline = 'top';
   g.fillStyle = '#00e0ff';
-  g.font = 'bold 15px Consolas,monospace';
-  g.fillText('P ' + pitch.toFixed(1) + '°', 16, 14);
+  g.font = 'bold 17px Consolas,monospace';
+  g.fillText('P ' + pitch.toFixed(1) + '°', 20, 17);
   g.fillStyle = '#ffcc00';
-  g.fillText('R ' + rollDeg.toFixed(1) + '°', 16, 34);
+  g.fillText('R ' + rollDeg.toFixed(1) + '°', 20, 42);
 
   if (typeof data.yaw === 'number') {
-    g.fillStyle = 'rgba(0,0,0,0.45)';
-    g.fillRect(W - 126, 8, 118, 26);
+    g.fillStyle = 'rgba(0,0,0,0.5)';
+    g.fillRect(W - 140, 10, 130, 28);
     g.fillStyle = '#9fe8ff';
-    g.font = 'bold 15px Consolas,monospace';
-    g.fillText('Y ' + data.yaw.toFixed(1) + '°', W - 118, 14);
+    g.font = 'bold 17px Consolas,monospace';
+    g.fillText('Y ' + data.yaw.toFixed(1) + '°', W - 130, 17);
   }
 }
 
