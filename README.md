@@ -57,7 +57,7 @@ contest2026_465_chuangkonghangtian/
 │   ├── sdcard.py                      修好的 MicroPython SD 卡驱动（见技术报告 3.5）
 │   └── prototype/                     早期传感器与显示验证脚本（保留开发过程）
 ├── web/dashboard.html               网页遥测大屏（曲线 + 雷达图 + 状态面板）
-├── skills/esp32-sf32-telemetry/     自建 Skill（AI 开发用，见第五节）
+├── skills/esp32-s3-p4x-telemetry/     自建 Skill（AI 开发用，见第五节）
 ├── tools/                           构建、烧录、取证、日志导出脚本
 ├── evidence/                        真机证据：SD 卡 CSV、串口日志、实物照片、演示视频
 ├── docs/                            技术报告、证据说明；ai-coding-raw/ 为 AI 日志原始记录
@@ -156,7 +156,7 @@ mpremote connect COM7 cp hardware/esp32/sdcard.py     :sdcard.py
 | 方案设计 | 半双工时隙调度、自适应落盘节流、加速度积分 + GPS 融合解算高度等方案均由 AI 给出并逐轮迭代 |
 | 编码 | 两端固件、板级驱动、网页大屏、字体生成与日志工具约 7180 行有效代码 |
 | 调试 | 由 AI 直接操作串口与烧录工具读真机日志、看栈回溯、定位硬件故障（典型 11 类问题见技术报告 3.5） |
-| 经验固化 | AI 把踩过的坑自动沉淀成自建 Skill `skills/esp32-sf32-telemetry/`，后续同类任务直接命中 |
+| 经验固化 | AI 把踩过的坑自动沉淀成自建 Skill `skills/esp32-s3-p4x-telemetry/`，后续同类任务直接命中 |
 | 文档 | 技术报告、证据整理、本 README 均由 AI 依据原始记录生成 |
 
 **规模**（详见 `docs/技术报告.docx` 3.6 节）：收录 11 个开发会话，
