@@ -177,7 +177,7 @@
         </div>
         <div class="gsbtns">
           <button id="btnGeo">本机定位(备用)</button>
-          <button id="btnSet">下发到思澈</button>
+          <button id="btnSet">设为雷达基准</button>
         </div>
         <div id="gsMsg" class="gsmsg">发射前把火箭摆在发射点，点上面按钮即可</div>
       </div>
@@ -427,6 +427,11 @@ function parseJSON(line) {
            la:(d.la===undefined?null:d.la), lo:(d.lo===undefined?null:d.lo),
            gpsTime:d.time||'NO_TIME', gpsFix:d.gps||0 };
   hist.t.push(data.t);
+  // P4X-GSBUF：把 la/lo 也攒进"火箭坐标缓冲"，按下按钮取平均更稳
+  if (data.la && data.lo) {
+    rkBuf.push([data.la, data.lo]);
+    if (rkBuf.length > RK_N) rkBuf.shift();
+  }
   hist.v.push(data.v); hist.alt.push(data.alt);
   hist.ax.push(data.ax); hist.ay.push(data.ay); hist.az.push(data.az);
   hist.pitch.push(data.pitch); hist.roll.push(data.roll); hist.yaw.push(data.yaw);
@@ -1128,16 +1133,22 @@ async function autoGround() {
 // 发射前火箭就摆在发射点，箭载 GPS 精度 1~3m，比浏览器定位准得多。
 async function useRocketAsGround() {
   const msg = document.getElementById('gsMsg');
-  if (!radar.rocket_lat && !radar.rocket_lon) {
-    msg.textContent = '还没收到火箭坐标，等 ESP32 搜到星再点';
+  // P4X-GSFIX：我们的固件在 JSON 里发的是 la/lo，而老代码只认 radar.rocket_lat，
+  // 所以这里加兜底 —— 只要任一路径拿到坐标就能用，且每次都可用（不再"一次行一次不行"）。
+  let rla = radar.rocket_lat, rlo = radar.rocket_lon;
+  if ((!rla || !rlo) && data && data.la && data.lo) {
+    rla = data.la; rlo = data.lo;
+  }
+  if (!rla || !rlo) {
+    msg.textContent = '还没收到火箭坐标（等 GPS 定位：看状态栏卫星数 · 单点）';
     msg.style.color = '#ff8800';
     return;
   }
   // 用最近 N 次定位取平均，静止时精度可提升数倍
   let sla = 0, slo = 0, n = 0;
   rkBuf.forEach(p => { if (p[0] || p[1]) { sla += p[0]; slo += p[1]; n++; } });
-  const la = n >= 5 ? sla / n : radar.rocket_lat;
-  const lo = n >= 5 ? slo / n : radar.rocket_lon;
+  const la = n >= 5 ? sla / n : rla;
+  const lo = n >= 5 ? slo / n : rlo;
   const al = data.alt || 0;      // 火箭海拔即发射点海拔
   fillGroundInputs(la, lo, al);
   localStorage.setItem('dsh.gs',
