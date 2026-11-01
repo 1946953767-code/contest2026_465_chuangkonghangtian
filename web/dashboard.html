@@ -416,7 +416,9 @@ function parseJSON(line) {
            pitch:(d.pitch===undefined?(d.p||0):d.pitch),
            roll:(d.roll===undefined?(d.r||0):d.roll),
            yaw:(d.yaw===undefined?(d.y||0):d.yaw),
-           ax:d.ax||0, ay:d.ay||0, az:d.az||0, sat:d.sat||0, phase:d.phase||0,
+           ax:d.ax||0, ay:d.ay||0, az:d.az||0,
+           sat:d.sat||0, satv:(d.satv===undefined?null:d.satv),
+           phase:d.phase||0,
            lora:(d.lora===undefined?1:d.lora), temp:d.temp||0, press:d.press||0,
            // rlink：箭载端自报"它能不能收到思澈的回包"（1=通 0=断 -1/undefined=未知）
            // 波形上用不到，但对判断单向故障很关键
@@ -435,7 +437,10 @@ function parseJSON(line) {
   }
   // 收到遥测即恢复绿灯（不再由数据内容判定，避免闪红）
   document.getElementById('loraDot').style.background = '#00ff88';
-  document.getElementById('satVal').textContent = data.sat;
+  document.getElementById('satVal').textContent =
+    (data.satv !== null && data.satv !== undefined && data.satv !== data.sat)
+      ? (data.sat + ' / ' + data.satv)       // 参与定位 / 视野内
+      : data.sat;
   document.getElementById('timeVal').textContent = data.gpsTime !== 'NO_TIME' ? data.gpsTime : data.t.toFixed(1);
   document.getElementById('altVal').textContent = Math.round(data.alt);
   document.getElementById('velVal').textContent = Math.round(data.v);
