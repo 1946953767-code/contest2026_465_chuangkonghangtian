@@ -424,6 +424,7 @@ function parseJSON(line) {
            // rlink：箭载端自报"它能不能收到思澈的回包"（1=通 0=断 -1/undefined=未知）
            // 波形上用不到，但对判断单向故障很关键
            rlink:(d.rlink===undefined?-1:d.rlink), probe:d.probe||0,
+           la:(d.la===undefined?null:d.la), lo:(d.lo===undefined?null:d.lo),
            gpsTime:d.time||'NO_TIME', gpsFix:d.gps||0 };
   hist.t.push(data.t);
   hist.v.push(data.v); hist.alt.push(data.alt);
@@ -443,6 +444,8 @@ function parseJSON(line) {
     const Q = { '0':'无定位', '1':'单点', '2':'差分', '4':'RTK固定', '5':'RTK浮点', '6':'估算' };
     const qs = Q[data.q] || '';
     let txt = String(data.sat);
+    // satv 来自 GSV（视野内），sat 来自 GGA（参与定位）。
+    // GSV 有时只报部分星座，会出现"视野内 < 参与"的矛盾，这时只显示参与数。
     if (data.satv !== null && data.satv !== undefined && data.satv > data.sat) {
       txt += ' / ' + data.satv;          // 参与 / 可见
     }
