@@ -101,6 +101,24 @@
   #chatSend { background:#7c5cff; color:#fff; border:none; border-radius:8px; padding:0 16px;
               font-weight:bold; cursor:pointer; }
   #chatSend:disabled { opacity:.45; cursor:not-allowed; }
+
+  /* ===== P4X-THEME：日间亮色（6:00–18:00 自动启用，也可点状态栏按钮切换） ===== */
+  body.light { background:#eef4fa; color:#12212e; }
+  body.light #bar { background:#dbe8f4; border-bottom-color:#b9cfe3; }
+  body.light #bar h1 { color:#0b6fa4; }
+  body.light #bar .sub, body.light .lbl { color:#5d7a90; }
+  body.light #status { background:#dbe8f4; color:#16324a; }
+  body.light .panel { background:#ffffff; border-color:#c6d7e6; }
+  body.light .panel h3 { color:#0b6fa4; }
+  body.light .big { color:#0a7a3f; }
+  body.light .drawer { background:#f5f9fd; border-left-color:#c6d7e6; }
+  body.light .drawer h4 { color:#0b6fa4; border-bottom-color:#d6e4f0; }
+  body.light #p4xLog { background:#ffffff; color:#2a4a5e; }
+  body.light .msg.bot { background:#e7f0f9; color:#16324a; }
+  body.light .msg.user { background:#cfe6f7; color:#0d2b40; }
+  body.light #chatIn { background:#ffffff; color:#12212e; border-color:#c6d7e6; }
+  body.light #chatBtns button { background:#e7f0f9; color:#1d4a66; border-color:#c6d7e6; }
+  body.light .drawer h4 button { background:#e7f0f9; color:#1d4a66; border-color:#c6d7e6; }
 </style>
 </head>
 <body>
@@ -116,6 +134,9 @@
   <span>🛰 卫星: <b id="satVal">--</b></span>
   <span>⏱ T+ <b id="timeVal">0.0</b>s</span>
   <span>阶段: <b id="phaseVal">--</b></span>
+  <span id="themeBtn" title="切换日夜配色（6:00–18:00 自动亮色）"
+        style="cursor:pointer;color:#7fb6d6;border:1px solid #1b4965;border-radius:10px;
+               padding:2px 10px;font-size:12px">☀ 日间</span>
   <div id="reads">
     <div><span class="lbl">高度 m</span><span id="altVal" class="big">0</span></div>
     <div><span class="lbl">速度 m/s</span><span id="velVal" class="big green">0</span></div>
@@ -232,6 +253,7 @@ let connected = false;
 let port = null;
 let reconnectTimer = null;
 let lastPacketMs = 0;
+let frozenSince = 0;      // P4X-FREEZE：断开时刻，用于显示"最后一帧"提示
 let lastRadarMs = 0;
 // 思澈端融合速度（无卫星时加速度拟合，有卫星时与 GPS 融合）
 let fusedVel = 0;
@@ -327,13 +349,15 @@ async function readLoop() {
   }
 
   if (closedByDevice) {
-    // 设备真的被拔出/关闭：这才判定 USB 断开
+    // 设备真的被拔出/关闭：判定 USB 断开。
+    // P4X-FREEZE：**不清空数据**，保留最后一帧，屏幕不会突然变空/变暗，
+    // 答辩时拔线也不会"画面没了"。只在标题栏提示已断开。
     connected = false;
-    data.sat = 0; data.lora = 0; data.gpsTime = 'NO_TIME';
     const btn = document.getElementById('connBtn');
-    btn.textContent = 'USB已断开';
-    btn.className = 'off';
-    document.getElementById('loraDot').style.background = '#ff4444';
+    btn.textContent = '已断开 · 显示最后一帧';
+    btn.className = 'warn';
+    document.getElementById('loraDot').style.background = '#ff9900';
+    frozenSince = Date.now();
     scheduleReconnect();
   } else if (connected) {
     // USB 还连着，只是读循环被打断：自动重启读取，不再假死
@@ -1463,6 +1487,29 @@ async function autoStartAI() {
     hint.textContent = 'P4X 已连上，但 AI 服务没起（8766）。双击 web 目录里的「启动助手.bat」，然后刷新本页。';
   }
 }
+
+/* ---------- ④ 日夜配色：6:00–18:00 自动亮色，可手动切换 ---------- */
+let themeManual = null;      // null=自动；true=亮；false=暗
+
+function applyTheme(light) {
+  document.body.classList.toggle('light', !!light);
+  const b = document.getElementById('themeBtn');
+  if (b) b.textContent = light ? '☾ 夜间' : '☀ 日间';
+}
+
+function themeAutoCheck() {
+  if (themeManual !== null) { applyTheme(themeManual); return; }
+  const h = new Date().getHours();
+  applyTheme(h >= 6 && h < 18);          // 以 6 点为界：白天亮、夜晚暗
+}
+
+document.getElementById('themeBtn').addEventListener('click', () => {
+  themeManual = !document.body.classList.contains('light');
+  applyTheme(themeManual);
+});
+
+themeAutoCheck();
+setInterval(themeAutoCheck, 60000);      // 每分钟校准一次（跨 6 点自动切）
 </script>
 </body>
 </html>
