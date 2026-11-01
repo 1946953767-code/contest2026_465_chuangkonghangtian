@@ -6,7 +6,7 @@ const zlib = require('zlib');
 const ROOT = 'C:\\Users\\HUAWEI\\.dsh\\sessions\\--C-Users-HUAWEI-Desktop--';
 const OUT_DIR = 'C:\\Users\\HUAWEI\\Desktop\\openvela_ai_contest_submission\\logs\\raw';
 const MAGIC = Buffer.from([0x28, 0xb5, 0x2f, 0xfd]);
-const KEYWORDS = ['ESP32', '思澈', 'SF32', 'LoRa', '遥测', 'central_tx',
+const KEYWORDS = ['ESP32', '地面站', 'SF32', 'LoRa', '遥测', 'central_tx',
                   'ground_station', 'uart2hwtest', '雷达', 'BME280', 'MPU6050',
                   'nuttx', 'openvela', 'sftool'];
 

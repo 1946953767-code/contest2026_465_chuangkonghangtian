@@ -1,9 +1,9 @@
 ---
 name: esp32-sf32-telemetry
-description: ESP32(MicroPython) + 思澈 SF32LB52(openvela/NuttX) 双端遥测系统的烧录、调试与排错流程。当任务涉及 ESP32 MicroPython 上传/离线自启动、思澈 openvela 板级驱动与引脚复用、sftool 烧录、LoRa 半双工双向通信、AMOLED framebuffer 显示、中文点阵字库、按键状态机、GPS/气压/姿态传感器采集时使用。包含本项目踩过的 11 类真实工程问题的检查清单。
+description: ESP32(MicroPython) + ESP32-P4X(openvela/NuttX) 双端遥测系统的烧录、调试与排错流程。当任务涉及 ESP32 MicroPython 上传/离线自启动、地面站 openvela 板级驱动与引脚复用、sftool 烧录、LoRa 半双工双向通信、AMOLED framebuffer 显示、中文点阵字库、按键状态机、GPS/气压/姿态传感器采集时使用。包含本项目踩过的 11 类真实工程问题的检查清单。
 ---
 
-# ESP32 + 思澈 SF32LB52 双端遥测开发
+# ESP32 + ESP32-P4X 双端遥测开发
 
 本项目为"箭载 ESP32-S3 + 地面端 SF32LB52"遥测系统。以下流程与检查项均来自真实调试记录，
 按顺序执行可避免重复踩坑。
@@ -13,9 +13,9 @@ description: ESP32(MicroPython) + 思澈 SF32LB52(openvela/NuttX) 双端遥测�
 | 设备 | 端口 | 参数 |
 |---|---|---|
 | ESP32-S3 | COM7 | 115200，MicroPython REPL |
-| 思澈 SF32LB52 | COM9 | 1000000，NSH 控制台（USB CDC） |
+| ESP32-P4X | COM9 | 1000000，NSH 控制台（USB CDC） |
 
-**思澈串口打开后必须显式拉低 RTS/DTR**，否则 SoC 会被压在复位状态，表现为 LCD 不亮、`ERR fb0`：
+**地面站串口打开后必须显式拉低 RTS/DTR**，否则 SoC 会被压在复位状态，表现为 LCD 不亮、`ERR fb0`：
 
 ```python
 s = serial.Serial('COM9', 1000000, timeout=0.4)
