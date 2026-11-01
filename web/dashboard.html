@@ -1441,11 +1441,12 @@ function aiBubble(role, text) {
 // 把页面上的实时数值整理成上下文，喂给模型
 function aiSnapshot() {
   const g = id => (document.getElementById(id) || {}).textContent || '--';
+  const Q = { '0':'无定位', '1':'单点', '2':'差分', '4':'RTK固定', '5':'RTK浮点', '6':'估算' };
   const lines = [
-    '【当前遥测】',
-    '高度(m): ' + g('altVal'),
+    '【当前遥测（来自板子实时帧）】',
+    '高度(m，海拔): ' + g('altVal'),
     '速度(m/s): ' + g('velVal'),
-    '卫星数: ' + g('satVal'),
+    '卫星: ' + g('satVal') + '（参与定位 / 视野内 · 定位质量）',
     '阶段: ' + g('phaseVal'),
     'T+ (s): ' + g('timeVal'),
     'LoRa: ' + (document.getElementById('loraDot').style.background.includes('00ff') ? '通' : '断'),
@@ -1455,10 +1456,14 @@ function aiSnapshot() {
       lines.push('内部状态: pitch=' + (data.pitch ?? '-') + ' roll=' + (data.roll ?? '-') +
                  ' yaw=' + (data.yaw ?? '-') + ' ax=' + (data.ax ?? '-') +
                  ' ay=' + (data.ay ?? '-') + ' az=' + (data.az ?? '-'));
+      lines.push('定位质量码 q=' + (data.q ?? '-') + '（1=单点 2=差分 6=估算）' +
+                 ' 参与星=' + (data.sat ?? '-') + ' 视野星=' + (data.satv ?? '-'));
+      if (data.la && data.lo) lines.push('坐标: ' + data.la + ', ' + data.lo);
+      if (data.press) lines.push('气压(Pa): ' + data.press + '  温度(C): ' + (data.temp ?? '-'));
     }
   } catch (e) {}
   if (typeof p4xLogEl !== 'undefined' && p4xLogEl && p4xLogEl.textContent) {
-    lines.push('【P4X 控制台尾部】', p4xLogEl.textContent.slice(-1200));
+    lines.push('【P4 控制台尾部 20 行】', p4xLogEl.textContent.slice(-1500));
   }
   return lines.join('\n');
 }

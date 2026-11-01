@@ -8,10 +8,14 @@ import sdcard
 from mpu6050 import MPU6050
 from drv import BME280
 import buzzer_drv
+# ---- 显示屏：已从 ST7735 (SPI) 换成 SSD1306 (I2C) ----
+# 换屏原因：OLED 只要 2 根线，而且 TFT 原来占的 6 个脚能腾出 4 个给别的外设。
+# ★ 引脚冲突提醒：OLED 用的是 GPIO 11/12（原 TFT 的 MOSI/SCK），
+#   **绝不能**照搬另一个项目的 16/17 —— 这里 GPIO17 是 LoRa 的 TX，会把无线顶掉。
 try:
-    import st7735
+    import ssd1306
 except Exception:
-    st7735 = None
+    ssd1306 = None
 try:
     import neopixel
 except Exception:
@@ -33,6 +37,14 @@ LORA_TX, LORA_RX = 17, 18
 #      现已把 MISO 挪到空闲的 GPIO4，GPIO48 腾出来专门驱动 RGB 指示灯。
 SD_CS, SD_SCK, SD_MOSI, SD_MISO = 14, 21, 47, 4
 
+# ---- OLED SSD1306 128x64（I2C）----
+# 引脚取自原 TFT 腾出来的位置：SCL=12、SDA=11（原本是 TFT 的 SCK / MOSI）。
+# 这两个脚已经在显示接口上、且实测安全（不是 flash/PSRAM/strapping 脚），
+# 接线不用绕到板子另一头，也不碰 LoRa 的 17/18。
+OLED_SCL, OLED_SDA = 12, 11
+OLED_ADDR = 0x3C
+OLED_W, OLED_H = 128, 64
+
 mpu = bme = gps = lora = sd = None
 sd_ok = gps_fix = lora_ok = False
 gps_time = "NO_TIME"
@@ -45,7 +57,7 @@ baro_alt = 0.0
 baro_ref = None
 baro_fix_ref = None
 gps_alt = 0.0
-tft = None
+oled = None
 last_tft_ms = 0
 last_gps_beep_ms = 0
 last_gps_fix_ms = 0
@@ -57,6 +69,14 @@ tx_count = 0
 last_stat_ms = 0
 listen_count = 0
 cmd_count = 0
+# ★ 噪声统计（诊断 A28 用）：[0]=未识别行数，[1]=样本。
+#   为什么需要它：GPIO18 悬空/模块没驱动 TXD 时会收到随机字节，
+#   旧代码对**任何**行都 cmd_count += 1，于是噪声被当成"思澈下发的命令"，
+#   让人误判链路是通的（实测 80 秒涨 36 个假命令，却一条 CMD PING 都没打印）。
+junk_stat = [0, []]
+# ★ 接收行缓冲。UART 一次 read 可能只拿到半条命令，必须攒到 \n 才算一条。
+#   用可变的 list 装，省掉 global 声明。
+rx_line_buf = [""]
 yaw = 0.0
 last_imu_ms = 0
 lat_f = 0.0    # 数值经纬度（度），供思澈雷达计算
@@ -84,36 +104,123 @@ lora_ok_played = False
 # 遥测照常发送（本项对传输速度零影响）。需要排查时把开关置 True 即可。
 LINK_MONITOR = False
 LINK_TIMEOUT_MS = 60000    # 开关打开时：60 秒内收到过地面端回包即认为对端在线
+# 遥测 L 字段专用的新鲜度窗口（5 分钟），比 LINK_TIMEOUT_MS 长得多。
+# 为什么不能用 60 秒：思澈的兜底 PING 是"每 6000 个主循环 tick"发一次，
+# 而主循环会被 LCD 刷屏拖慢，实测真实间隔可超过 2 分钟 —— 用 60 秒会误报断链。
+LINK_REPORT_MS = 300000
+
+# ---- 双工模式开关（★ 必须与 A28 的 MD0/MD1 接线同步）----
+#   False = 半双工（MD0=0, MD1=0）：模块同一时间只能单向传输，
+#           所以必须周期性留出"纯接收窗口"收思澈下发的命令，
+#           代价是这期间遥测停发（实测吞吐只有设计值的一半左右）。
+#   True  = 全双工（MD0=0,MD1=1 或 MD0=1,MD1=0）：手册 7.2.3 明确
+#           "模块可以双向传输，数据可以同时收发"——收发互不干扰，
+#           **接收窗口可以整个删掉**，遥测连续发送、命令随时下发。
+# ★★ 切到 True 之前，硬件必须已经是全双工接线，否则两端同时发射互相撞掉。
+FULL_DUPLEX = True
+
+# 全双工自动兜底判定窗口（毫秒）。
+# 全双工下如果**从开机到现在一条命令都没收到**，说明硬件其实还是半双工——
+# 模块收发不能同时进行，持续发射就等于彻底听不见地面端。
+# 这时自动退回半双工窗口模式。窗口模式一定能收，所以只会单向收敛，不会震荡。
+# 90 秒晚于"思澈开机必发的 S:PING"，正常情况下不会误判。
+# ★ 有这层兜底，即使开关和接线一时对不上，也只是掉速，绝不会收不到点火命令。
+FD_FALLBACK_MS = 90000
+
+# 遥测发送周期。
+#   快包 100ms（10 Hz）—— 姿态显示更跟手。28 字节能整包进 128 字节 FIFO，
+#                          **不阻塞**，所以这一档可以放心拉快。
+#   完整包 2000ms —— ★ 曾试过 1000ms，结果屏上出现"一秒流畅、然后顿一下"。
+#                     原因：完整包 216 字节 > FIFO，在 9600 波特下要占掉
+#                     约 225ms 串口时间，是**唯一会阻塞**的一包；周期减半
+#                     就等于顿挫频率翻倍。改回 2000ms 后周期感恢复。
+#   根治办法：串口 9600 → 115200（模块 SPEED 寄存器 + 思澈固件
+#             cfsetispeed 两边一起改），216 字节只要 19ms，顿挫基本消失。
+# 带宽核算：10×28B + 0.5×216B ≈ 388 B/s；9600 8N1 = 960 B/s，占用约 40%。
+QUICK_MS = 100 if FULL_DUPLEX else 250
+FULL_MS = 2000
+# 全双工下 TF 卡的批量补写周期（半双工靠接收窗口的下降沿触发，全双工没有窗口了）
+SD_FLUSH_MS = 3000
 last_peer_ms = 0           # 最近一次收到地面端有效回包的时刻
 peer_count = 0             # 收到的地面端回包总数
 tx_fail = False            # 上一次遥测写入是否抛异常
 link_ever_ok = False       # 本次上电后是否曾经确认过链路
 
 # ---- 板载 RGB 指示灯（WS2812 @ GPIO48）----
-# 状态要求（最终确认）：
-#   待命 / 结束            → 熄灭
-#   确认 / 点火 / 飞行 / 灭火 → 全亮（白）
-# 阶段来源与蜂鸣器一致：思澈端按键状态机下发 B:READY / B:ARM / B:IGNITE /
-# B:END / B:ABORT。上电默认待命态，所以开机为灭。
-# 注意 WS2812 掉电后状态随机且会锁存，初始化时必须主动写一次。
+# 每个任务阶段一个颜色，现场扫一眼就知道现在到哪一步了：
+#
+#   阶段        B:* 命令   颜色            含义
+#   ----        --------   --------------  --------------------------------
+#   预备        READY      绿 / 红         ★ 这两个是**卫星连接状态**：
+#                                          绿 = GPS 已定位，红 = 还没定位
+#   准备        ARM        橙黄 (255,160,0)  已解锁、等待点火
+#   点火        IGNITE     白   (255,255,255) 全亮
+#   灭火        ABORT      蓝   (0,80,255)
+#   结束        END        紫   (150,0,255)
+#
+# ★★ 优先级规则（主人定的）★★
+#   卫星连接状态**只在"预备"阶段显示**。
+#   一旦进入"准备"（预备点火）之后，就只显示该步骤自己的颜色，
+#   不再切回连接状态 —— 否则飞行中灯还在绿/红闪，看不出到哪一步了。
+#   任务结束复位回到"预备"后，才重新开始显示连接状态。
 RGB_PIN = 48
-RGB_ON_COLOR = (255, 255, 255)   # 全亮
+
+PHASE_STANDBY = "READY"     # 预备（待命）
+PHASE_ARM = "ARM"           # 准备
+PHASE_IGNITE = "IGNITE"     # 点火
+PHASE_ABORT = "ABORT"       # 灭火
+PHASE_END = "END"           # 结束
+
+RGB_COLOR_STANDBY_FIX = (0, 200, 0)       # 预备 + 已定位 → 绿
+RGB_COLOR_STANDBY_NOFIX = (200, 0, 0)     # 预备 + 未定位 → 红
+RGB_COLOR_ARM = (255, 160, 0)             # 准备 → 橙黄
+RGB_COLOR_IGNITE = (255, 255, 255)        # 点火 → 白（全亮）
+RGB_COLOR_ABORT = (0, 80, 255)            # 灭火 → 蓝
+RGB_COLOR_END = (150, 0, 255)             # 结束 → 紫
 RGB_OFF_COLOR = (0, 0, 0)
+
 rgb_led = None
-rgb_state = False
+rgb_now = (0, 0, 0)          # 当前实际点亮的颜色
+mission_phase = PHASE_STANDBY  # 当前任务阶段（由思澈下发的 B:* 更新）
+
+
+def rgb_set_color(color):
+    """把 RGB 设成指定颜色。写入失败不影响主逻辑，也不会重复写同一个颜色。"""
+    global rgb_now
+    if rgb_led is None:
+        return
+    if color == rgb_now:
+        return
+    try:
+        rgb_led[0] = color
+        rgb_led.write()
+        rgb_now = color
+    except Exception as e:
+        print("RGB ERR", e)
 
 
 def rgb_set(on):
-    """点亮/熄灭板载 RGB。写入失败不影响主逻辑。"""
-    global rgb_state
-    if rgb_led is None:
-        return
-    try:
-        rgb_led[0] = RGB_ON_COLOR if on else RGB_OFF_COLOR
-        rgb_led.write()
-        rgb_state = on
-    except Exception as e:
-        print("RGB ERR", e)
+    """兼容旧调用：亮 = 白，灭 = 黑。"""
+    rgb_set_color(RGB_COLOR_IGNITE if on else RGB_OFF_COLOR)
+
+
+def rgb_apply_phase():
+    """按当前阶段决定 RGB 颜色（含"连接状态只在预备阶段显示"的规则）。
+
+    主循环里每轮都调：
+      · 预备阶段 → 颜色跟着 gps_fix 变（绿/红），这就是"卫星连接状态"
+      · 其它阶段 → 该阶段的固定颜色，不会再被 gps_fix 影响
+    """
+    if mission_phase == PHASE_STANDBY:
+        rgb_set_color(RGB_COLOR_STANDBY_FIX if gps_fix else RGB_COLOR_STANDBY_NOFIX)
+    elif mission_phase == PHASE_ARM:
+        rgb_set_color(RGB_COLOR_ARM)
+    elif mission_phase == PHASE_IGNITE:
+        rgb_set_color(RGB_COLOR_IGNITE)
+    elif mission_phase == PHASE_ABORT:
+        rgb_set_color(RGB_COLOR_ABORT)
+    elif mission_phase == PHASE_END:
+        rgb_set_color(RGB_COLOR_END)
 
 
 def sd_try_mount():
@@ -156,18 +263,27 @@ def sd_try_mount():
 
 
 def init_hw():
-    global mpu, bme, gps, lora, sd, sd_ok, tft, rgb_led
-    if st7735:
+    global mpu, bme, gps, lora, sd, sd_ok, oled, rgb_led
+    # ---- OLED 初始化（I2C，SSD1306 128x64 @0x3C）----
+    # 用**硬件 I2C**：128x64 整帧只有 1KB，I2C 400kHz 下几十毫秒就能刷完。
+    # 千万别用 SoftI2C —— 软件位翻转会慢一个数量级，拖慢主循环。
+    if ssd1306:
         try:
-            bl = machine.Pin(5, machine.Pin.OUT); bl.value(1)
-            spi = machine.SPI(2, baudrate=20000000, polarity=0, phase=0,
-                              sck=machine.Pin(12), mosi=machine.Pin(11))
-            tft = st7735.ST7735(spi, machine.Pin(7, machine.Pin.OUT),
-                                machine.Pin(46, machine.Pin.OUT), machine.Pin(10, machine.Pin.OUT),
-                                width=160, height=128)
-            tft.fill(0); tft.text("FLIGHT COMPUTER", 18, 45, 0xFFFF); tft.show()
-            print("TFT OK")
-        except Exception as e: print("TFT ERR", e)
+            oled_i2c = machine.I2C(0, scl=machine.Pin(OLED_SCL),
+                                   sda=machine.Pin(OLED_SDA), freq=400000)
+            found = oled_i2c.scan()
+            oled = ssd1306.SSD1306_I2C(OLED_W, OLED_H, oled_i2c, OLED_ADDR)
+            oled.fill(0)
+            oled.text("FLIGHT COMPUTER", 8, 26, 1)
+            oled.text("OLED SCL=%d SDA=%d" % (OLED_SCL, OLED_SDA), 0, 40, 1)
+            oled.show()
+            print("OLED OK (i2c scan=%s)" % [hex(a) for a in found])
+            if OLED_ADDR not in found:
+                print("OLED WARN: 0x%02X 不在扫描结果里，检查 SCL/SDA 接线" % OLED_ADDR)
+        except Exception as e:
+            print("OLED ERR", e)
+    else:
+        print("OLED: ssd1306.py 没找到")
     mpu_bus = machine.SoftI2C(scl=machine.Pin(MPU_SCL), sda=machine.Pin(MPU_SDA), freq=100000)
     bme_bus = machine.SoftI2C(scl=machine.Pin(BME_SCL), sda=machine.Pin(BME_SDA), freq=100000)
     try:
@@ -202,13 +318,13 @@ def init_hw():
         time.sleep_ms(120)
     if not sd_ok:
         print("SD N/A now - will keep retrying in background")
-    # 板载 RGB：上电即待命态 → 灭。WS2812 掉电后状态随机且会锁存，
-    # 不做这一步开机可能一直乱亮。
+    # 板载 RGB：上电即"预备"阶段 → 显示卫星连接状态（未定位=红，定位=绿）。
+    # WS2812 掉电后状态随机且会锁存，不做这一步开机可能一直乱亮。
     if neopixel is not None:
         try:
             rgb_led = neopixel.NeoPixel(machine.Pin(RGB_PIN), 1)
-            rgb_set(False)
-            print("RGB LED OK (standby: off)")
+            rgb_apply_phase()
+            print("RGB LED OK (phase=%s)" % mission_phase)
         except Exception as e:
             rgb_led = None
             print("RGB ERR", e)
@@ -421,43 +537,51 @@ def send_ack(tag):
 def handle_sd_cmd(line):
     """处理思澈下发的命令：S:NEW<id> 新建文件记录，S:STOP 停止；B:* 播放音效。"""
     global sd_record, sd_file_id, sd_path
-    global last_b_cmd, last_b_cmd_ms
+    global last_b_cmd, last_b_cmd_ms, mission_phase
     if line.startswith("B:"):
         body = line[2:].strip()
         now = time.ticks_ms()
-        duplicate = (body == last_b_cmd and
-                     time.ticks_diff(now, last_b_cmd_ms) < 2500)
+
+        # ★★ 去重判据：**按"阶段是否变化"**，不再按时间 ★★
+        #
+        #  原来判的是"同一条命令 2.5 秒内不重放"。那个判据有个致命问题：
+        #  思澈为了命中 ESP32 的接收窗口会把同一条命令重发十几次，
+        #  一旦跨越 2.5 秒，就会被当成"新命令"再响一次 —— 声音乱掉。
+        #
+        #  改成按阶段判断后：
+        #    · 同阶段的重复下发 → 只回执，不重放音效（思澈可以放心持续重发）
+        #    · 阶段真的变了     → 一定响，且保证每个阶段都响得到
+        #
+        #  ★ 这正是"每步音效缺失"的正解：思澈那边现在可以把每个阶段
+        #    排队发满，ESP32 这边按阶段去重，两边配合就不会漏也不会重。
         last_b_cmd = body
         last_b_cmd_ms = now
-        if duplicate:
-            send_ack(body)
+        if body == mission_phase:
+            send_ack(body)          # 阶段没变：只回执，不重放
             return True
-        print("CMD RX B:" + body)
+
+        mission_phase = body
+        print("CMD RX B:" + body + " (phase changed)")
+        # ★★ 一律走非阻塞 play()，一声都不 sleep ★★
+        # 原来这里是 for + buzzer_drv.beep()，而 beep() 内部是 time.sleep_ms()，
+        # 一段旋律会把主循环整段卡住 700ms 以上：期间不收 LoRa 命令、不发遥测，
+        # 结果就是"蜂鸣器丢步"（边沿触发的阶段音效错过就永久没了，不会补）。
+        # 改成 play() 后音效只是排队，主循环照常跑；队列保证每个阶段都响得到。
         if body == "READY":
-            # 回到待命：上扬启动音，和确认/点火/灭火/结束区分
-            for freq in (660, 880, 1175, 1568):
-                buzzer_drv.beep(freq, 120, 55)
-            rgb_set(False)                          # 待命 → RGB 灭
-            send_ack("READY")
+            # 回到待命/预备：上扬启动音，和确认/点火/灭火/结束区分
+            buzzer_drv.play(((660, 120, 55), (880, 120, 55),
+                             (1175, 120, 55), (1568, 120, 55)))
         elif body == "ARM":
-            buzzer_drv.beep(440, 600, 120)          # 低音长鸣：点火确认
-            rgb_set(True)                           # 确认 → RGB 亮
-            send_ack("ARM")
+            buzzer_drv.play(((440, 600, 120),))        # 准备：低音长鸣（点火确认）
         elif body == "IGNITE":
-            for _ in range(5):
-                buzzer_drv.beep(3200, 90, 55)       # 点火：5 声尖锐
-            rgb_set(True)                           # 点火 → RGB 全亮
-            send_ack("IGNITE")
+            buzzer_drv.play(((3200, 90, 55),) * 5)     # 点火：5 声尖锐
         elif body == "END":
-            for freq in (1200, 1000, 800, 600):
-                buzzer_drv.beep(freq, 150, 55)       # 结束：4 声递降
-            rgb_set(False)                          # 结束 → RGB 灭
-            send_ack("END")
+            buzzer_drv.play(((1200, 150, 55), (1000, 150, 55),
+                             (800, 150, 55), (600, 150, 55)))   # 结束：4 声递降
         elif body == "ABORT":
-            for _ in range(2):
-                buzzer_drv.beep(300, 300, 100)       # 灭火：2 声低沉
-            rgb_set(True)                            # 灭火 → RGB 保持全亮
-            send_ack("ABORT")
+            buzzer_drv.play(((300, 300, 100),) * 2)    # 灭火：2 声低沉
+        rgb_apply_phase()           # RGB 跟着阶段走（预备阶段显示连接状态）
+        send_ack(body)
         print("CMD", body)
         return True
     if not line.startswith("S:"):
@@ -495,7 +619,14 @@ def poll_lora_cmd():
             if isinstance(raw, tuple): raw = "".join(str(x) for x in raw)
             elif isinstance(raw, bytes): raw = raw.decode()
             elif not isinstance(raw, str): raw = str(raw)
-            for line in raw.replace("\r", "").split("\n"):
+            # ★ 必须做行缓冲：一次 read 可能只拿到半条命令，
+            #   按 read 边界切会把它劈成两段"噪声"（实测 90 秒凭空涨 10 条 junk）。
+            #   攒够完整的一行（见到 \n）才处理。
+            rx_line_buf[0] += raw.replace("\r", "")
+            if len(rx_line_buf[0]) > 512:
+                rx_line_buf[0] = ""      # 异常长行：丢弃，防止缓冲无限增长
+            while "\n" in rx_line_buf[0]:
+                line, rx_line_buf[0] = rx_line_buf[0].split("\n", 1)
                 line = line.strip()
                 if not line: continue
                 # 思澈回包：P:1 = 探测应答，A:xx = 命令回执。
@@ -507,9 +638,22 @@ def poll_lora_cmd():
                     link_ever_ok = True
                     got = True
                     continue
-                handle_sd_cmd(line)
-                got = True
-                cmd_count += 1
+                # ★ 只认 B:/S: 两种真实命令前缀（handle_sd_cmd 也只处理这两种）。
+                #   其余一律算噪声，**不计入 cmd_count**——否则链路状态会说谎。
+                if len(line) >= 2 and line[0] in ("B", "S") and line[1] == ":":
+                    handle_sd_cmd(line)
+                    got = True
+                    cmd_count += 1
+                    # ★★ 收到真实命令 = 地面端确实在线，直接当作链路存活证据。
+                    #    这比主动探测可靠得多：不用额外发探测包去抢半双工信道
+                    #    （老注释里"探测打断收包"的坑就是这么来的）。
+                    #    即使 LINK_MONITOR 关着也生效，让 lora_ok 与遥测 L 字段说真话。
+                    last_peer_ms = time.ticks_ms()
+                    link_ever_ok = True
+                else:
+                    junk_stat[0] += 1
+                    if len(junk_stat[1]) < 6:
+                        junk_stat[1].append(line[:24])
     except Exception:
         pass
     return got
@@ -522,25 +666,31 @@ def play_melody(notes):
 
 
 def update_tft(pitch, roll, temp, pressure):
-    if tft is None: return
+    """刷屏（函数名保留 update_tft 不动，减少改动面；实际画的是 OLED）。
+
+    SSD1306 128x64 单色：**16 字符 × 8 行**，每行 8 像素高。
+    行位置 y = 0/8/16/24/32/40/48/56，正好 8 行，一行都不浪费。
+    原来是 160x128 彩色 TFT 的 6 行，现在多出 2 行给姿态和电压之外的用途。
+    """
+    if oled is None: return
     try:
-        # ST7735 可视区 160x128。行位置沿用原来已验证安全的那一套
-        # （y=8/25/42/59/76/93，末行 93+8=101，不顶到上下边缘）。
-        # 之前试过排 8 行到 y=116，结果上下都顶格超出屏幕，已改回 6 行。
         # 版面：
-        #   TELEMETRY
-        #   G:FIX SAT16        ← 定位状态（原 LoRa 状态栏已从屏幕移除）
-        #   ALT  123.4  V   4.5
-        #   BAR 1013.2hPa      ← 气压（hPa，便于与气象数据对照）
-        #   TMP   26.6C        ← 温度
-        #   SD:1  12:34:56
-        tft.fill(0)
-        tft.text("TELEMETRY", 4, 8, 0xFFFF)
-        tft.text("G:%s SAT%2d" % ("FIX" if gps_fix else "NO", satellites), 4, 25,
-                 0x07E0 if gps_fix else 0xF800)
-        tft.text("ALT %6.1fm V %4.1f" % (fused_alt, speed), 4, 42, 0x07FF)
-        tft.text("BAR %7.1fhPa" % ((pressure or 0) / 100.0), 4, 59, 0xFDA0)
-        tft.text("TMP %6.1fC" % (temp or 0), 4, 76, 0xFDA0)
+        #   FLIGHT COMPUTER      ← 标题
+        #   G:FIX  SAT16         ← 定位状态 + 卫星数
+        #   ALT   123.4m         ← 融合高度
+        #   V      12.3m/s       ← 对地速度（原来是和 ALT 挤一行，现在拆开）
+        #   BAR 1013.2hPa        ← 气压
+        #   TMP    26.6C         ← 温度
+        #   P  1.2 R -3.4        ← 姿态 pitch/roll（OLED 多出来的行）
+        #   SD:1 REC 12:34:56    ← SD 状态，一眼看出在不在录
+        oled.fill(0)
+        oled.text("FLIGHT COMPUTER", 0, 0, 1)
+        oled.text("G:%-3s SAT%2d" % ("FIX" if gps_fix else "NO", satellites), 0, 8, 1)
+        oled.text("ALT %7.1fm" % fused_alt, 0, 16, 1)
+        oled.text("V   %7.1fm/s" % speed, 0, 24, 1)
+        oled.text("BAR %7.1fhPa" % ((pressure or 0) / 100.0), 0, 32, 1)
+        oled.text("TMP %7.1fC" % (temp or 0), 0, 40, 1)
+        oled.text("P%5.1f R%5.1f" % (pitch or 0.0, roll or 0.0), 0, 48, 1)
         # SD 状态直接显示在屏幕上，一眼能看出"有没有卡、在不在录"
         if not sd_ok:
             sd_txt = "SD:-- NO CARD"
@@ -548,9 +698,9 @@ def update_tft(pitch, roll, temp, pressure):
             sd_txt = "SD:%d REC %s" % (sd_file_id, gps_time[:8] or "--:--:--")
         else:
             sd_txt = "SD:%d stop %s" % (sd_file_id, gps_time[:8] or "--:--:--")
-        tft.text(sd_txt, 4, 93, 0x07E0 if sd_record else 0x8410)
-        tft.show()
-    except Exception as e: print("TFT update ERR", e)
+        oled.text(sd_txt[:16], 0, 56, 1)
+        oled.show()
+    except Exception as e: print("OLED update ERR", e)
 
 
 def main():
@@ -579,31 +729,65 @@ def main():
     listen_until = 0
     was_in_listen = False
     last_listen_ms = time.ticks_ms()
+    sd_flush_ms = time.ticks_ms()   # 全双工下的 TF 卡批量补写计时
+    fd_mode = FULL_DUPLEX           # 运行时双工模式，可被下面的自动兜底降级
+    boot_ms = time.ticks_ms()       # "全双工是否真的成立"的判定起点
     while True:
         # 按键命令最高优先级，循环 10ms 一次，最迟 10ms 内响应
         poll_lora_cmd()
 
+        # ★ 蜂鸣器非阻塞推进：每轮就推进一下音符，绝不 sleep。
+        #   放在命令之后、其余工作之前，保证音效节奏不受后面那些耗时操作影响。
+        buzzer_drv.tick()
+
         now = time.ticks_ms()
 
+        # ---- 全双工自动兜底 ----
+        # 全双工下若从开机到现在**一条命令都没收到**，说明硬件其实还是半双工：
+        # 模块收发不能同时进行，持续发射就等于完全听不见地面端。
+        # 立刻退回半双工窗口模式——窗口模式一定能收，所以只会单向收敛，不震荡。
+        # 有了这层兜底，开关与接线一时对不上也只是掉速，**绝不会收不到点火命令**。
+        if fd_mode and not link_ever_ok and \
+                time.ticks_diff(now, boot_ms) >= FD_FALLBACK_MS:
+            fd_mode = False
+            print("★ 全双工不成立（90 秒未收到任何命令），已自动退回半双工窗口模式")
+            print("  请检查 MD0/MD1 接线：全双工要 MD0=0,MD1=1 或 MD0=1,MD1=0")
+
+        # ---- 纯接收窗口：只有半双工才需要 ----
         # 命令优先：每 2 秒留 1 秒纯接收窗口。
         # LoRa 空中发射时间远长于 UART 写入时间，200ms 窗口不可靠；
         # 思澈会连续重发约 3.2 秒，确保 B:IGNITE 等命中窗口。
         # 窗口必须够长：模块空中发送时间远大于 UART 写入时间，
         # 400ms 时积压没排完窗口就结束，实测按键命令完全收不到。
-        if listen_until == 0 and time.ticks_diff(now, last_listen_ms) >= 2000:
-            listen_until = now + 1000
-            last_listen_ms = now
-            listen_count += 1
-        in_listen = (listen_until != 0 and
-                     time.ticks_diff(now, listen_until) < 0)
-        if listen_until != 0 and not in_listen:
-            listen_until = 0
+        # ★ 全双工（FULL_DUPLEX=True）下收发同时进行、互不干扰，这个窗口
+        #   纯属白白丢掉发射时隙，直接跳过。接收不会漏：主循环每轮都调
+        #   poll_lora_cmd()，等于 100% 时间在听，比原来 1/3 时间在听更强。
+        if fd_mode:
+            in_listen = False
+        else:
+            if listen_until == 0 and time.ticks_diff(now, last_listen_ms) >= 2000:
+                listen_until = now + 1000
+                last_listen_ms = now
+                listen_count += 1
+            in_listen = (listen_until != 0 and
+                         time.ticks_diff(now, listen_until) < 0)
+            if listen_until != 0 and not in_listen:
+                listen_until = 0
         in_listen_now = in_listen      # 给 sd_flush() 用：窗口内不写卡
 
-        # 只在"窗口刚结束"的那一刻补写一次（下降沿）。
-        # 注意不能写成每轮都调——那样缓冲每轮被清空，攒批就完全失效了
-        # （实测退化成每次只写 1 行、每行还要 1.1 秒）。
-        if was_in_listen and not in_listen and sd_buf and sd_record:
+        # 补写时机：
+        #   · 半双工：在"接收窗口刚结束"的下降沿补写一次。不能写成每轮都调——
+        #     那样缓冲每轮被清空，攒批完全失效（实测退化成每次只写 1 行、
+        #     每行还要 1.1 秒）。
+        #   · 全双工：**没有窗口了，下降沿永远不会发生**，必须换成定时补写，
+        #     否则 TF 卡录制会静默失效——这个坑很隐蔽：卡上不报错，只是没数据。
+        #     周期 3 秒，攒批行数与原来同一个量级。
+        if fd_mode:
+            if sd_buf and sd_record and \
+                    time.ticks_diff(now, sd_flush_ms) >= SD_FLUSH_MS:
+                sd_flush_ms = now
+                sd_flush()
+        elif was_in_listen and not in_listen and sd_buf and sd_record:
             sd_flush()
         was_in_listen = in_listen
 
@@ -630,34 +814,52 @@ def main():
 
         if lora and not in_listen:
             try:
-                # 快包 250ms + 完整包 1500ms（约 4.3 包/秒）：
-                # 实测这是这条 LoRa 链路的最优档（丢包约 8%，主要是
-                # 为保证按键命令接收而留出的 10% 接收窗口），再快丢包会明显上升。
-                # 250ms 是实测最优档：更快（180ms）链路饱和反而掉到 1.3 包/秒，
-                # 这一档约 3.3 包/秒且不丢包。
-                if time.ticks_diff(now, last_quick_ms) >= 250:
+                # 周期由 QUICK_MS / FULL_MS 决定，随 FULL_DUPLEX 自动切换：
+                #   半双工：快包 250ms + 完整包 2000ms（原实测最优档）
+                #   全双工：快包 100ms + 完整包 1000ms（吞吐翻倍，姿态 10 Hz）
+                # 说明：原来"再快就掉包"（180ms 档反而掉到 1.3 包/秒）其实不是
+                # 带宽不够，而是半双工撞包——模块同一时间只能单向传输。
+                # 全双工下这个限制消失，所以可以放心提速。
+                if time.ticks_diff(now, last_quick_ms) >= QUICK_MS:
                     last_quick_ms = now
-                    quick = {"p": round(pitch, 1), "r": round(roll, 1),
-                             "y": round(yaw, 1)}
+                    # 姿态精度提到 0.01°（原来 0.1°）：全双工后带宽富余，
+                    # 地面站的姿态曲线更细腻——"更准"直接体现在这里。
+                    quick = {"p": round(pitch, 2), "r": round(roll, 2),
+                             "y": round(yaw, 2)}
                     lora.write((json.dumps(quick, separators=(",", ":")) + "\n").encode())
                     tx_count += 1
                 # 完整包：含加速度/气压/GPS，供思澈做融合计算
-                if time.ticks_diff(now, last_full_ms) >= 2000:
+                if time.ticks_diff(now, last_full_ms) >= FULL_MS:
                     last_full_ms = now
                     # 经纬度用于思澈端雷达：思澈本地算相对距离/方位，不回传、不额外占带宽
-                    full = {"p": round(pitch, 1), "r": round(roll, 1),
-                            "y": round(yaw, 1),
+                    # ★ 全双工后带宽富余，整体提高量化精度（"更准"）：
+                    #   姿态 0.1°→0.01°，高度 0.1m→0.01m，温度 0.1°C→0.01°C，
+                    #   气压 1Pa→0.1Pa，速度 0.1→0.01 m/s。
+                    #   其中**气压/高度最值钱**：原来 0.1m 的分辨率在低速段
+                    #   会形成明显的量化台阶，看不出真实趋势；现在能看清。
+                    full = {"p": round(pitch, 2), "r": round(roll, 2),
+                            "y": round(yaw, 2),
                             # 经纬度用 6 位小数（约 0.11m），避免截断掉 GPS 精度
                             "la": round(lat_f, 6), "lo": round(lon_f, 6),
                             "ax": round(a["x"], 3), "ay": round(a["y"], 3), "az": round(a["z"], 3),
-                            "a": round(fused_alt, 1), "gps": 1 if gps_fix and satellites >= 4 else 0,
+                            "a": round(fused_alt, 2), "gps": 1 if gps_fix and satellites >= 4 else 0,
                             "s": satellites,
-                            "t": round(temp, 1) if temp is not None else 0,
-                            "P": round(pressure / 1000.0, 2) if pressure else 0,
-                            "v": round(speed, 1), "T": gps_time}
-                    # 链路字段只在开关打开时才上报（默认关闭，见 LINK_MONITOR 注释）
-                    if LINK_MONITOR:
-                        full["L"] = 1 if lora_ok else (-1 if not link_ever_ok else 0)
+                            "t": round(temp, 2) if temp is not None else 0,
+                            "P": round(pressure / 1000.0, 3) if pressure else 0,
+                            "v": round(speed, 2), "T": gps_time}
+                    # ★ 链路字段不再受 LINK_MONITOR 开关限制，始终上报。
+                    #   为什么现在能放心上报：lora_ok 的判据已改成"收到思澈的真实命令"
+                    #   （见 poll_lora_cmd），这是**纯被动观测**——不发探测包、不抢半双工
+                    #   信道，比当年那套主动探测可靠得多；而且箭载端根本没有主动探测代码。
+                    #   注意：开关 LINK_MONITOR 仍然只留给"链路告警音"，保持关闭，
+                    #   避免思澈 PING 间隔偏长时误报断链、乱叫。
+                    #   1=最近听到过地面端 / 0=曾经听到过但现在没声了 / -1=从未听到
+                    if link_ever_ok:
+                        _fresh = (last_peer_ms != 0 and
+                                  time.ticks_diff(now, last_peer_ms) < LINK_REPORT_MS)
+                        full["L"] = 1 if _fresh else 0
+                    else:
+                        full["L"] = -1
                     lora.write((json.dumps(full, separators=(",", ":")) + "\n").encode())
                     tx_count += 1
                 tx_fail = False
@@ -691,20 +893,33 @@ def main():
         if time.ticks_diff(now, last_stat_ms) >= 10000:
             last_stat_ms = now
             peer_age = (time.ticks_diff(now, last_peer_ms) // 1000) if last_peer_ms else -1
-            print("STAT tx=%d listen=%d cmd=%d lora=%d peer=%d age=%ds lat=%.5f lon=%.5f fix=%d sat=%d t=%s" %
-                  (tx_count, listen_count, cmd_count, 1 if lora_ok else 0,
+            print("STAT tx=%d listen=%d fd=%d cmd=%d junk=%d lora=%d peer=%d age=%ds lat=%.5f lon=%.5f fix=%d sat=%d phase=%s t=%s" %
+                  (tx_count, listen_count, 1 if fd_mode else 0, cmd_count, junk_stat[0], 1 if lora_ok else 0,
                    peer_count, peer_age,
-                   lat_f, lon_f, 1 if gps_fix else 0, satellites, gps_time))
+                   lat_f, lon_f, 1 if gps_fix else 0, satellites, mission_phase, gps_time))
+            # ★ 打印噪声样本：一眼就能看出收到的到底是真数据还是乱码
+            if junk_stat[0] and junk_stat[1]:
+                print("JUNK %d 行 样本=%s" % (junk_stat[0], junk_stat[1]))
+                junk_stat[1] = []
+
+        # ---- RGB 跟随阶段 ----
+        #   ★ 放在主循环里每轮调用，是为了让"预备"阶段的灯能实时跟着
+        #     GPS 定位状态变（未定位=红 → 定位成功=绿）。
+        #   进入准备/点火/灭火/结束之后，rgb_apply_phase() 给的是该阶段的
+        #   固定颜色，不再受 gps_fix 影响 —— 这就是主人要的优先级规则。
+        #   rgb_set_color() 内部对相同颜色直接 return，所以每轮调开销极小。
+        rgb_apply_phase()
 
         # 提示音降频，避免掩盖按键确认音
+        # ★ 全部走非阻塞 play()：这两声原来会各堵住主循环几十到几百毫秒。
         if not gps_fix:
             gps_fix_played = False
             if time.ticks_diff(now, last_gps_beep_ms) >= 5000:
                 last_gps_beep_ms = now
-                buzzer_drv.beep(1047, 60, 0)
+                buzzer_drv.play(((1047, 60, 0),))
         elif not gps_fix_played:
             gps_fix_played = True
-            play_melody(((1047, 150, 80), (1397, 150, 80), (1760, 220, 100)))
+            buzzer_drv.play(((1047, 150, 80), (1397, 150, 80), (1760, 220, 100)))
         # 链路提示音：开关关闭时**完全不参与**，避免任何误鸣。
         # （曾经写成 elif (not LINK_MONITOR) or ...，关闭状态下该分支每轮循环都为真，
         #   导致"链路正常"提示音无限重复——已修正为整体包在开关里。）
@@ -714,10 +929,10 @@ def main():
                 # 只在"曾经通过、现在断了"时报警
                 if time.ticks_diff(now, last_lora_beep_ms) >= 2000:
                     last_lora_beep_ms = now
-                    buzzer_drv.beep(2600, 120, 80)
+                    buzzer_drv.play(((2600, 120, 80),))
             elif lora_ok and not lora_ok_played:
                 lora_ok_played = True
-                play_melody(((523, 150, 80), (698, 150, 80), (880, 220, 100)))
+                buzzer_drv.play(((523, 150, 80), (698, 150, 80), (880, 220, 100)))
         tick += 1
         time.sleep_ms(10)
 

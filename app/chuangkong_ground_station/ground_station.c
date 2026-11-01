@@ -298,6 +298,26 @@ static int cn_width(const char *s, int sc)
     return n * 16 * sc;
 }
 
+/* ===== 帧耗时测量（临时诊断代码，测完可整段删除）=====
+ * 目的：搞清楚"屏只能刷 4.2 Hz"到底是哪一步吃掉的。
+ *   清屏 fill_rect / 页面绘制 / fb_update 整屏传输 / 主循环真实节拍
+ * 输出形如：
+ *   PERF frames=8 fps10=42 | clear=6000 page=52000 update=110000 frame=168000 us | tick=40000 us x30
+ *   （时间单位微秒；fps10 = 帧率×10，避免 printf 的 %f 依赖浮点支持） */
+#include <time.h>
+
+static unsigned long long now_us(void)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (unsigned long long)ts.tv_sec * 1000000ULL
+         + (unsigned long long)ts.tv_nsec / 1000ULL;
+}
+
+static unsigned long long acc_clear, acc_page, acc_update, acc_frame;
+static unsigned long long acc_tick, t_loop_prev, t_meas0;
+static unsigned long cnt_frame, cnt_tick;
+
 static void fb_update(void)
 {    /* fb_area_s 的第三、四项是宽度和高度，刷新完整 framebuffer。 */
     struct fb_area_s a = {0, 0, fb_w, fb_h};
@@ -892,10 +912,15 @@ static int cmd_repeat;
 static int cmd_wait_ticks;
 static int cmd_next_valid;
 
-/* 蜂鸣器命令：最新阶段音效立即抢占旧音效，避免确认音重发阻塞点火音。 */
+/* 蜂鸣器命令：改成**队列**，每个阶段的命令都完整发满，不再互相覆盖。 */
+#define PCMD_QN 6            /* 队列深度：够放 READY/ARM/IGNITE/ABORT/END 一连串 */
+#define PCMD_PER_CMD 20      /* 每条命令重发次数（覆盖到第二个接收窗口） */
+
 static char cmd_priority_buf[32];
 static int cmd_priority_repeat;
 static int cmd_priority_wait_ticks;
+static char pcmd_q[PCMD_QN][32];   /* 待发的优先级命令队列 */
+static int pcmd_qn;                /* 队列里条数 */
 
 /* ESP32 每 2 秒留 1 秒纯接收窗口；窗口里它不发遥测，思澈这边就会出现约 1 秒的
  * 遥测空档。把命令重发对齐到这个空档，能明显提高一次命中率 ——
@@ -914,11 +939,28 @@ static int lora_in_gap(void)
 
 static void queue_priority_cmd(const char *cmd)
 {
-    /* 第一帧立即发，后续仅后台补发；新阶段覆盖旧阶段的补发队列。 */
-    strncpy(cmd_priority_buf, cmd, sizeof(cmd_priority_buf) - 1);
-    cmd_priority_buf[sizeof(cmd_priority_buf) - 1] = '\0';
-    cmd_priority_repeat = 20; /* 覆盖到第二个接收窗口，避免整轮落在发射相位 */
-    cmd_priority_wait_ticks = 0;
+    /* ★★ 改成**队列**，不再互相覆盖 ★★
+     *
+     * 原来这里是 strncpy 直接覆盖：新阶段的命令会顶掉旧阶段还没发完的重发队列。
+     * 现场表现（主人反馈）：按键快的时候（每步 0.3~0.5 秒）前一步的命令刚发出去
+     * 两三次就被下一步顶掉，而 ESP32 每 2 秒才开 1 秒接收窗口 ——
+     * 没撞上窗口的那几条就整条丢失，结果**只有最后那个"结束"有蜂鸣器声**。
+     *
+     * 改成队列后：每个阶段的命令都会被完整发满 PCMD_PER_CMD 次才轮到下一条。
+     * ESP32 那边同时改成"按阶段去重"（见 central_tx.py），所以
+     * 即使补发延迟到达也不会重复响，两边配合做到**一个不落、一个不重**。
+     */
+    if (pcmd_qn >= PCMD_QN)
+    {
+        /* 队列满（极少见）：丢掉最老的一条，保证最新的动作一定发得出去 */
+        memmove(pcmd_q[0], pcmd_q[1], sizeof(pcmd_q[0]) * (PCMD_QN - 1));
+        pcmd_qn = PCMD_QN - 1;
+    }
+    strncpy(pcmd_q[pcmd_qn], cmd, sizeof(pcmd_q[0]) - 1);
+    pcmd_q[pcmd_qn][sizeof(pcmd_q[0]) - 1] = '\0';
+    pcmd_qn++;
+    if (cmd_priority_repeat <= 0)
+        cmd_priority_wait_ticks = 0;   /* 空闲状态：唤醒来发 */
 }
 
 static void queue_cmd(const char *cmd)
@@ -954,6 +996,19 @@ static void cmd_tick(void)
         cmd_priority_repeat--;
         /* 空档内（箭载端在接收）加快重发，把这一轮命令集中打进它的窗口 */
         cmd_priority_wait_ticks = lora_in_gap() ? SEND_WAIT_IN_GAP : SEND_WAIT_NORMAL;
+        return;
+    }
+    /* ★ 当前这条发满了，从队列里取下一條接着发（不再互相覆盖）。
+     *   这样主人连续快按几步时，每一步的命令都能完整发到 ESP32，
+     *   每个阶段的蜂鸣器音效都会响，不会只剩最后一声。 */
+    if (pcmd_qn > 0)
+    {
+        strncpy(cmd_priority_buf, pcmd_q[0], sizeof(cmd_priority_buf) - 1);
+        cmd_priority_buf[sizeof(cmd_priority_buf) - 1] = '\0';
+        memmove(pcmd_q[0], pcmd_q[1], sizeof(pcmd_q[0]) * (PCMD_QN - 1));
+        pcmd_qn--;
+        cmd_priority_repeat = PCMD_PER_CMD;
+        cmd_priority_wait_ticks = 0;
         return;
     }
     if (cmd_repeat <= 0)
@@ -1355,13 +1410,19 @@ static void draw_page_sat(flight_t *f)
     /* LoRa：显示本端接收状态即可。
      * 曾经加过"箭载是否收得到本端"的双向显示，实测那条判据不稳定
      * （箭载端边发遥测边收，命中率低、还会误报），已撤掉。
-     * 本端收不到箭载遥测是最直接可靠的判据。 */
+     * 本端收不到箭载遥测是最直接可靠的判据。
+     *
+     * ★ 主人要求：状态字放大。
+     *   原来 "正常"/"断开" 是 scale 1（16x16），现场隔远看不清；
+     *   现在改成 **scale 2（32x32）**。
+     *   排版跟着调整：标签"连接"缩到左上角小字，状态点挪到标签右边，
+     *   大字从 y+16 起（32 像素高 → 正好落在 50 像素的框内，不越界）。 */
     fill_round_rect(SAFE_X + SAFE_W / 2 + 4, y, SAFE_W / 2 - 4, 50, 6, C_DARKER);
     fill_rect(SAFE_X + SAFE_W / 2 + 4, y, 4, 50, C_ORANGE);
-    text_cn(SAFE_X + SAFE_W / 2 + 14, y + 6, "连接", C_ORANGE, 1);
-    fill_circle(SAFE_X + SAFE_W / 2 + 14, y + 32, 5, f->lora_ok ? C_GREEN : C_RED);
-    text_cn(SAFE_X + SAFE_W / 2 + 26, y + 24, f->lora_ok ? "正常" : "断开",
-            f->lora_ok ? C_GREEN : C_RED, 1);
+    text_cn(SAFE_X + SAFE_W / 2 + 14, y + 3, "连接", C_ORANGE, 1);
+    fill_circle(SAFE_X + SAFE_W / 2 + 58, y + 11, 5, f->lora_ok ? C_GREEN : C_RED);
+    text_cn(SAFE_X + SAFE_W / 2 + 14, y + 16, f->lora_ok ? "正常" : "断开",
+            f->lora_ok ? C_GREEN : C_RED, 2);
     y += 58;
 
     /* 飞行阶段：中文显示 */
@@ -2267,7 +2328,9 @@ int main(int argc, char *argv[])
         /* LCD 全屏传输受面板总线带宽限制，稳定在约25~30帧/秒，避免整屏变色。 */
         if (cur_page != prev_page || (draw_tick % 6) == 0)
         {
+            unsigned long long _t0 = now_us(), _t1, _t2, _t3;
             fill_rect(0, 0, fb_w, fb_h, C_BLACK);
+            _t1 = now_us();
             prev_page = cur_page;
 
             switch (cur_page)
@@ -2282,11 +2345,47 @@ int main(int argc, char *argv[])
 
             /* 底部提示 */
             text(SAFE_X + 60, fb_h - SAFE_Y - 4, "< SWIPE >", C_LABEL);
+            _t2 = now_us();
             fb_update();
+            _t3 = now_us();
             lora_dirty = 0;
             if (draw_tick < 4)
                 printf("DRAW page=%d ok\n", cur_page);
+
+            /* ---- 帧耗时累计，每 2 秒上报一次 ---- */
+            acc_clear  += _t1 - _t0;
+            acc_page   += _t2 - _t1;
+            acc_update += _t3 - _t2;
+            acc_frame  += _t3 - _t0;
+            cnt_frame++;
+            if (t_meas0 == 0)
+                t_meas0 = _t3;
+            if (_t3 - t_meas0 >= 2000000ULL)
+            {
+                unsigned long n  = cnt_frame ? cnt_frame : 1;
+                unsigned long nt = cnt_tick  ? cnt_tick  : 1;
+                printf("PERF frames=%lu fps10=%lu | clear=%lu page=%lu update=%lu frame=%lu us"
+                       " | tick=%lu us x%lu\n",
+                       n, (unsigned long)(n * 10000000ULL / (_t3 - t_meas0)),
+                       (unsigned long)(acc_clear / n), (unsigned long)(acc_page / n),
+                       (unsigned long)(acc_update / n), (unsigned long)(acc_frame / n),
+                       (unsigned long)(acc_tick / nt), nt);
+                acc_clear = acc_page = acc_update = acc_frame = 0;
+                acc_tick = 0; cnt_frame = 0; cnt_tick = 0;
+                t_meas0 = _t3;
+            }
         }
+        /* 主循环真实节拍统计（确认"每 tick 40ms"是不是真的） */
+        {
+            unsigned long long _tn = now_us();
+            if (t_loop_prev)
+            {
+                acc_tick += _tn - t_loop_prev;
+                cnt_tick++;
+            }
+            t_loop_prev = _tn;
+        }
+
         usleep(5000);
     }
 
