@@ -60,15 +60,19 @@
   .gsbtns button:hover { background:#2c5f7f; }
   .gsmsg { color:#7fb6d6; font-size:12px; text-align:center; }
 
-  /* ===== P4X 融合：顶栏按钮 / 抽屉 / AI 对话 ===== */
-  .topbtn { padding:8px 16px; font-size:14px; border:none; border-radius:6px; cursor:pointer;
-            font-weight:bold; margin-left:8px; }
-  #p4xBtn { background:#2c5f7f; color:#d8f1ff; }
-  #p4xBtn.ok { background:#00a86b; color:#fff; }
-  #p4xBtn.busy { background:#ff9900; color:#000; }
-  #p4xBtn.err { background:#c0392b; color:#fff; }
+  /* ===== 顶栏大按钮 ===== */
+  .topbtn { padding:0 26px; height:42px; font-size:16px; border:none; border-radius:8px;
+            cursor:pointer; font-weight:bold; margin-left:12px; letter-spacing:1px;
+            display:inline-flex; align-items:center; justify-content:center; }
+  #connBtn { background:#ff4444; color:#fff; }
+  #connBtn.on { background:#00cc44; }
+  #connBtn.dis { background:#444; color:#999; cursor:not-allowed; }
+  #connBtn.off { background:#ff4444; color:#fff; }
+  #connBtn.warn { background:#ff9900; color:#000; }
   #aiBtn { background:#5a3d9e; color:#f0e8ff; }
   #aiBtn.on { background:#7c5cff; color:#fff; }
+  #p4xMini { margin-left:12px; color:#5f8aa5; font-size:12px; cursor:pointer;
+             text-decoration:underline; align-self:center; }
   .drawer { position:fixed; top:0; right:-520px; width:500px; height:100vh; z-index:60;
             background:#0b1622; border-left:1px solid #1b4965; display:flex; flex-direction:column;
             transition:right .22s ease; box-shadow:-14px 0 40px rgba(0,0,0,.5); }
@@ -103,9 +107,9 @@
 <div id="bar">
   <h1>创空航天</h1>
   <span class="sub">火箭遥测地面站 · 下滑查看曲线</span>
-  <button id="p4xBtn">连接 P4X 并启动</button>
-  <button id="aiBtn">AI 助手</button>
-  <button id="connBtn" class="off">连接 USB</button>
+  <button id="aiBtn" class="topbtn">AI 助手</button>
+  <button id="connBtn" class="topbtn off">连接 P4X</button>
+  <span id="p4xMini">控制台</span>
 </div>
 <div id="status">
   <span><span id="loraDot" style="background:#ff4444"></span>LoRa</span>
@@ -243,7 +247,10 @@ async function connect() {
       try { await port.close(); } catch(e) {}
     }
     port = selected;
-    await port.open({ baudRate: 1000000, flowControl: 'none' });
+    // P4X-BAUD: 数据源（P4 控制台 / 箭载端）都是 115200。
+    // 原来这里写的是 1000000：CDC 虚拟串口无所谓，但走串口桥时会全是乱码，
+    // 表现就是"连上了但一条数据都解析不出来"。
+    await port.open({ baudRate: 115200, flowControl: 'none' });
     // 关键：降低 RTS/DTR，否则会把思澈 SoC 保持在复位状态，
     // 导致 LCD 面板初始化失败（屏幕不亮 / ERR fb0）。
     try { await port.setSignals({ dataTerminalReady: false, requestToSend: false }); } catch(e) {}
@@ -404,7 +411,7 @@ async function scheduleReconnect() {
       if (ports.length) {
         if (connected || readLoopRunning) return;
         port = ports[0];
-        await port.open({baudRate:1000000, flowControl:'none'});
+        await port.open({baudRate:115200, flowControl:'none'});   /* P4X-BAUD: 与 P4 / 箭载端一致 */
         try { await port.setSignals({ dataTerminalReady: false, requestToSend: false }); } catch(e) {}
         connected = true;
         readLoop();
@@ -1081,7 +1088,7 @@ setTimeout(()=>{
 /* ---------- 抽屉开关 ---------- */
 const p4xDrawer = document.getElementById('p4xDrawer');
 const aiDrawer  = document.getElementById('aiDrawer');
-document.getElementById('p4xBtn').addEventListener('click', () => {
+document.getElementById('p4xMini').addEventListener('click', () => {
   p4xDrawer.classList.toggle('open');
   aiDrawer.classList.remove('open');
   if (!p4xConnected) p4xConnect();
@@ -1103,8 +1110,9 @@ function p4xLog(msg) {
   p4xLogEl.scrollTop = p4xLogEl.scrollHeight;
 }
 function p4xState(cls, text) {
-  const b = document.getElementById('p4xBtn');
-  b.className = cls; b.textContent = text;
+  const m = document.getElementById('p4xMini');
+  m.textContent = '控制台·' + text;
+  m.style.color = cls === 'ok' ? '#00cc44' : cls === 'err' ? '#ff6b6b' : '#ffb454';
 }
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
@@ -1202,8 +1210,8 @@ document.getElementById('p4xRestart').addEventListener('click', async () => {
   p4xLog('已重启。');
 });
 
-/* ---------- ② AI 多轮问答 ---------- */
-const AI_URL = 'http://127.0.0.1:8766';
+/* ---------- ② AI 多轮问答（同源 /ai/* 代理，避开跨端口限制） ---------- */
+const AI_URL = '/ai';     // 同源：serve.py 把 /ai/* 转发到 127.0.0.1:8766
 const chatList = document.getElementById('chatList');
 const chatIn = document.getElementById('chatIn');
 const chatSend = document.getElementById('chatSend');
