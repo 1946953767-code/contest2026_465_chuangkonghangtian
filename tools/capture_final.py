@@ -18,7 +18,7 @@ t = b.decode('utf-8', 'replace')
 
 out = r'C:\Users\HUAWEI\Desktop\openvela_ai_contest_submission\evidence\串口日志.txt'
 with open(out, 'w', encoding='utf-8') as f:
-    f.write('=== 思澈 SF32LB52 地面端串口日志（COM9 @ 1000000 bps） ===\n')
+    f.write('=== ESP32-P4X 地面端串口日志（COM9 @ 1000000 bps） ===\n')
     f.write('采集时间: ' + time.strftime('%Y-%m-%d %H:%M:%S') + '\n')
     f.write('采集时长: 30 秒\n')
     f.write('说明: 串口打开后已显式拉低 RTS/DTR，避免 SoC 被压在复位状态\n')

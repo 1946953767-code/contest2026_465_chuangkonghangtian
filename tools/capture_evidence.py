@@ -19,7 +19,7 @@ while time.time() - t0 < 40:
 
 text = ''.join(lines)
 with open(OUT, 'w', encoding='utf-8') as f:
-    f.write('=== 思澈 SF32LB52 地面端串口日志（COM9, 1000000bps）===\n')
+    f.write('=== ESP32-P4X 地面端串口日志（COM9, 1000000bps）===\n')
     f.write('采集时间: ' + time.strftime('%Y-%m-%d %H:%M:%S') + '\n')
     f.write('说明: RTS/DTR 已拉低，避免把 SoC 压在复位状态\n')
     f.write('=' * 60 + '\n\n')

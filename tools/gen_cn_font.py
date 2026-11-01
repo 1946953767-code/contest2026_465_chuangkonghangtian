@@ -1,4 +1,4 @@
-# 生成思澈 LCD 用的 16x16 中文点阵字库（仅包含界面需要的字）
+# 生成地面站 LCD 用的 16x16 中文点阵字库（仅包含界面需要的字）
 from PIL import Image, ImageDraw, ImageFont
 
 CHARS = (

@@ -1,4 +1,4 @@
-# 板级适配（思澈 SF32LB52 DevKit + LCM 适配板）
+# 板级适配（ESP32-P4X DevKit + LCM 适配板）
 
 `repo sync` 后本目录会软链到工作树的 `vendor/openvela/boards/contest2026_465_board`。
 

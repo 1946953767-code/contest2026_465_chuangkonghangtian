@@ -3,7 +3,7 @@ const path = require('path');
 const zlib = require('zlib');
 
 const ROOT = 'C:\\Users\\HUAWEI\\.dsh\\sessions\\--C-Users-HUAWEI-Desktop--';
-const KEYWORDS = ['ESP32', '思澈', 'SF32', 'LoRa', '遥测', 'central_tx',
+const KEYWORDS = ['ESP32', '地面站', 'SF32', 'LoRa', '遥测', 'central_tx',
                   'ground_station', 'uart2hwtest', '雷达', 'BME280', 'MPU6050'];
 
 function walk(dir, acc) {

@@ -273,7 +273,7 @@ void BSP_PIN_LCD(void)
 
     /* 卫星模块串口（排针 18 = PA38）：
      *   模块 TXD -> 排针 18 (PA38)
-     *   模块 RXD 可不接（思澈不需要向模块发命令）
+     *   模块 RXD 可不接（地面站不需要向模块发命令）
      * PA38 原为 VSYS 软开关，板级说明已废弃、始终在线，因此空闲可用。
      */
     HAL_PIN_Set(PAD_PA38, PA38_I2C_UART, PIN_PULLUP, 1);

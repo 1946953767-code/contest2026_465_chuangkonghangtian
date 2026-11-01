@@ -71,7 +71,7 @@ listen_count = 0
 cmd_count = 0
 # ★ 噪声统计（诊断 A28 用）：[0]=未识别行数，[1]=样本。
 #   为什么需要它：GPIO18 悬空/模块没驱动 TXD 时会收到随机字节，
-#   旧代码对**任何**行都 cmd_count += 1，于是噪声被当成"思澈下发的命令"，
+#   旧代码对**任何**行都 cmd_count += 1，于是噪声被当成"地面站下发的命令"，
 #   让人误判链路是通的（实测 80 秒涨 36 个假命令，却一条 CMD PING 都没打印）。
 junk_stat = [0, []]
 # ★ 接收行缓冲。UART 一次 read 可能只拿到半条命令，必须攒到 \n 才算一条。
@@ -79,7 +79,7 @@ junk_stat = [0, []]
 rx_line_buf = [""]
 yaw = 0.0
 last_imu_ms = 0
-lat_f = 0.0    # 数值经纬度（度），供思澈雷达计算
+lat_f = 0.0    # 数值经纬度（度），供地面站雷达计算
 lon_f = 0.0
 last_b_cmd = ""
 last_b_cmd_ms = 0
@@ -88,7 +88,7 @@ lora_ok_played = False
 
 # ---- LoRa 链路健康判定（双向探测）----
 # 关键教训：UART.write() 只是把数据交给本机发送 FIFO/移位寄存器，
-# 模块没插、模块断电、超出距离、思澈关机，write 全都不会报错。
+# 模块没插、模块断电、超出距离、地面站关机，write 全都不会报错。
 # 所以"发送没抛异常"绝对不能当链路判据——之前正是这样写的，
 # 结果模块拔掉后 ESP32 屏幕上仍然一直显示 L:OK。
 # ---- LoRa 链路存活检测开关（默认关闭）----
@@ -105,13 +105,13 @@ lora_ok_played = False
 LINK_MONITOR = False
 LINK_TIMEOUT_MS = 60000    # 开关打开时：60 秒内收到过地面端回包即认为对端在线
 # 遥测 L 字段专用的新鲜度窗口（5 分钟），比 LINK_TIMEOUT_MS 长得多。
-# 为什么不能用 60 秒：思澈的兜底 PING 是"每 6000 个主循环 tick"发一次，
+# 为什么不能用 60 秒：P4 的兜底 PING 是"每 6000 个主循环 tick"发一次，
 # 而主循环会被 LCD 刷屏拖慢，实测真实间隔可超过 2 分钟 —— 用 60 秒会误报断链。
 LINK_REPORT_MS = 300000
 
 # ---- 双工模式开关（★ 必须与 A28 的 MD0/MD1 接线同步）----
 #   False = 半双工（MD0=0, MD1=0）：模块同一时间只能单向传输，
-#           所以必须周期性留出"纯接收窗口"收思澈下发的命令，
+#           所以必须周期性留出"纯接收窗口"收地面站下发的命令，
 #           代价是这期间遥测停发（实测吞吐只有设计值的一半左右）。
 #   True  = 全双工（MD0=0,MD1=1 或 MD0=1,MD1=0）：手册 7.2.3 明确
 #           "模块可以双向传输，数据可以同时收发"——收发互不干扰，
@@ -123,7 +123,7 @@ FULL_DUPLEX = True
 # 全双工下如果**从开机到现在一条命令都没收到**，说明硬件其实还是半双工——
 # 模块收发不能同时进行，持续发射就等于彻底听不见地面端。
 # 这时自动退回半双工窗口模式。窗口模式一定能收，所以只会单向收敛，不会震荡。
-# 90 秒晚于"思澈开机必发的 S:PING"，正常情况下不会误判。
+# 90 秒晚于"地面站开机必发的 S:PING"，正常情况下不会误判。
 # ★ 有这层兜底，即使开关和接线一时对不上，也只是掉速，绝不会收不到点火命令。
 FD_FALLBACK_MS = 90000
 
@@ -134,7 +134,7 @@ FD_FALLBACK_MS = 90000
 #                     原因：完整包 216 字节 > FIFO，在 9600 波特下要占掉
 #                     约 225ms 串口时间，是**唯一会阻塞**的一包；周期减半
 #                     就等于顿挫频率翻倍。改回 2000ms 后周期感恢复。
-#   根治办法：串口 9600 → 115200（模块 SPEED 寄存器 + 思澈固件
+#   根治办法：串口 9600 → 115200（模块 SPEED 寄存器 + 地面站固件
 #             cfsetispeed 两边一起改），216 字节只要 19ms，顿挫基本消失。
 # 带宽核算：10×28B + 0.5×216B ≈ 388 B/s；9600 8N1 = 960 B/s，占用约 40%。
 QUICK_MS = 100 if FULL_DUPLEX else 250
@@ -181,7 +181,7 @@ RGB_OFF_COLOR = (0, 0, 0)
 
 rgb_led = None
 rgb_now = (0, 0, 0)          # 当前实际点亮的颜色
-mission_phase = PHASE_STANDBY  # 当前任务阶段（由思澈下发的 B:* 更新）
+mission_phase = PHASE_STANDBY  # 当前任务阶段（由地面站下发的 B:* 更新）
 
 
 def rgb_set_color(color):
@@ -526,7 +526,7 @@ def log_row(row):
 
 
 def send_ack(tag):
-    """回执：思澈据此确认 ESP32 已收到按键命令（并已在 LCD 上显示）。"""
+    """回执：地面站据此确认 ESP32 已收到按键命令（并已在 LCD 上显示）。"""
     if lora is None: return
     try:
         lora.write(("A:" + tag + "\n").encode())
@@ -535,7 +535,7 @@ def send_ack(tag):
 
 
 def handle_sd_cmd(line):
-    """处理思澈下发的命令：S:NEW<id> 新建文件记录，S:STOP 停止；B:* 播放音效。"""
+    """处理地面站下发的命令：S:NEW<id> 新建文件记录，S:STOP 停止；B:* 播放音效。"""
     global sd_record, sd_file_id, sd_path
     global last_b_cmd, last_b_cmd_ms, mission_phase
     if line.startswith("B:"):
@@ -545,14 +545,14 @@ def handle_sd_cmd(line):
         # ★★ 去重判据：**按"阶段是否变化"**，不再按时间 ★★
         #
         #  原来判的是"同一条命令 2.5 秒内不重放"。那个判据有个致命问题：
-        #  思澈为了命中 ESP32 的接收窗口会把同一条命令重发十几次，
+        #  地面站为了命中 ESP32 的接收窗口会把同一条命令重发十几次，
         #  一旦跨越 2.5 秒，就会被当成"新命令"再响一次 —— 声音乱掉。
         #
         #  改成按阶段判断后：
-        #    · 同阶段的重复下发 → 只回执，不重放音效（思澈可以放心持续重发）
+        #    · 同阶段的重复下发 → 只回执，不重放音效（地面站可以放心持续重发）
         #    · 阶段真的变了     → 一定响，且保证每个阶段都响得到
         #
-        #  ★ 这正是"每步音效缺失"的正解：思澈那边现在可以把每个阶段
+        #  ★ 这正是"每步音效缺失"的正解：地面站那边现在可以把每个阶段
         #    排队发满，ESP32 这边按阶段去重，两边配合就不会漏也不会重。
         last_b_cmd = body
         last_b_cmd_ms = now
@@ -588,7 +588,7 @@ def handle_sd_cmd(line):
         return False
     body = line[2:].strip()
     if body == "PING":
-        send_ack("PONG")          # 链路自检：证明思澈→ESP32 双向可达
+        send_ack("PONG")          # 链路自检：证明地面站→ESP32 双向可达
         print("CMD PING")
     elif body == "STOP":
         sd_flush()                # 先落盘缓冲，再停记录
@@ -606,7 +606,7 @@ def handle_sd_cmd(line):
 
 
 def poll_lora_cmd():
-    """读取思澈经 LoRa 下发的按键命令（低延迟优先处理）。"""
+    """读取地面站经 LoRa 下发的按键命令（低延迟优先处理）。"""
     global cmd_count, last_peer_ms, peer_count, link_ever_ok
     if lora is None: return
     got = False
@@ -629,7 +629,7 @@ def poll_lora_cmd():
                 line, rx_line_buf[0] = rx_line_buf[0].split("\n", 1)
                 line = line.strip()
                 if not line: continue
-                # 思澈回包：P:1 = 探测应答，A:xx = 命令回执。
+                # 地面站回包：P:1 = 探测应答，A:xx = 命令回执。
                 # 这是"链路双向可达"唯一可靠的证据——本机发送成功不算数。
                 # 回包不是命令，不走 handle_sd_cmd，也不计进 cmd_count。
                 if len(line) >= 2 and line[0] in ("P", "A") and line[1] == ":":
@@ -717,7 +717,7 @@ def main():
     play_melody(((1200, 120, 80), (1600, 120, 80), (2000, 200, 120)))
     print("BUZZER self-test done")
     # 插卡即自动开始记录。SD 记录是核心功能，不能因为"还没按 KEY1"就一行都不写；
-    # 思澈端 KEY1 后续下发 S:NEW<n> 时会切到新文件，用于按任务阶段分段。
+    # 地面端 KEY1 后续下发 S:NEW<n> 时会切到新文件，用于按任务阶段分段。
     if sd_ok:
         sd_record = True
         sd_path = None
@@ -756,7 +756,7 @@ def main():
         # ---- 纯接收窗口：只有半双工才需要 ----
         # 命令优先：每 2 秒留 1 秒纯接收窗口。
         # LoRa 空中发射时间远长于 UART 写入时间，200ms 窗口不可靠；
-        # 思澈会连续重发约 3.2 秒，确保 B:IGNITE 等命中窗口。
+        # 地面站会连续重发约 3.2 秒，确保 B:IGNITE 等命中窗口。
         # 窗口必须够长：模块空中发送时间远大于 UART 写入时间，
         # 400ms 时积压没排完窗口就结束，实测按键命令完全收不到。
         # ★ 全双工（FULL_DUPLEX=True）下收发同时进行、互不干扰，这个窗口
@@ -828,10 +828,10 @@ def main():
                              "y": round(yaw, 2)}
                     lora.write((json.dumps(quick, separators=(",", ":")) + "\n").encode())
                     tx_count += 1
-                # 完整包：含加速度/气压/GPS，供思澈做融合计算
+                # 完整包：含加速度/气压/GPS，供地面站做融合计算
                 if time.ticks_diff(now, last_full_ms) >= FULL_MS:
                     last_full_ms = now
-                    # 经纬度用于思澈端雷达：思澈本地算相对距离/方位，不回传、不额外占带宽
+                    # 经纬度用于地面端雷达：地面站本地算相对距离/方位，不回传、不额外占带宽
                     # ★ 全双工后带宽富余，整体提高量化精度（"更准"）：
                     #   姿态 0.1°→0.01°，高度 0.1m→0.01m，温度 0.1°C→0.01°C，
                     #   气压 1Pa→0.1Pa，速度 0.1→0.01 m/s。
@@ -848,11 +848,11 @@ def main():
                             "P": round(pressure / 1000.0, 3) if pressure else 0,
                             "v": round(speed, 2), "T": gps_time}
                     # ★ 链路字段不再受 LINK_MONITOR 开关限制，始终上报。
-                    #   为什么现在能放心上报：lora_ok 的判据已改成"收到思澈的真实命令"
+                    #   为什么现在能放心上报：lora_ok 的判据已改成"收到P4 的真实命令"
                     #   （见 poll_lora_cmd），这是**纯被动观测**——不发探测包、不抢半双工
                     #   信道，比当年那套主动探测可靠得多；而且箭载端根本没有主动探测代码。
                     #   注意：开关 LINK_MONITOR 仍然只留给"链路告警音"，保持关闭，
-                    #   避免思澈 PING 间隔偏长时误报断链、乱叫。
+                    #   避免地面站 PING 间隔偏长时误报断链、乱叫。
                     #   1=最近听到过地面端 / 0=曾经听到过但现在没声了 / -1=从未听到
                     if link_ever_ok:
                         _fresh = (last_peer_ms != 0 and
@@ -866,7 +866,7 @@ def main():
             except Exception:
                 tx_fail = True
 
-        # 链路判定：只认"有没有收到思澈的有效回包"（探测应答 / 命令回执），
+        # 链路判定：只认"有没有收到P4 的有效回包"（探测应答 / 命令回执），
         # 不看本机 write 是否报错——write 对链路故障完全不敏感。
         if lora is None or tx_fail or last_peer_ms == 0:
             lora_ok = False
@@ -889,7 +889,7 @@ def main():
             last_tft_ms = now
             update_tft(pitch, roll, temp, pressure)
 
-        # 每 10 秒报告发送计数，便于对比思澈接收数评估丢包
+        # 每 10 秒报告发送计数，便于对比地面站接收数评估丢包
         if time.ticks_diff(now, last_stat_ms) >= 10000:
             last_stat_ms = now
             peer_age = (time.ticks_diff(now, last_peer_ms) // 1000) if last_peer_ms else -1

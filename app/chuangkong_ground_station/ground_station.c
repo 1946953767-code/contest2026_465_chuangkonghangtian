@@ -43,7 +43,7 @@ static unsigned int reset_hold_ticks;
 static int reset_latched;
 static unsigned long mission_file_id = 0;
 
-/* 思澈端速度/高度融合计算（低延迟，不依赖网页） */
+/* 地面端速度/高度融合计算（低延迟，不依赖网页） */
 static float fused_v = 0.0f;
 static float fused_alt = 0.0f;
 static float gps_v = 0.0f;
@@ -348,7 +348,7 @@ static char esp_ack[20];
 static int esp_ack_ms;
 /* 命令回执的新鲜度倒计时。收到 A:xxx 回执或 P? 探测时重置为 ESP_ACK_HOLD，
  * 主循环每轮递减。之前这里是个一旦置 1 就永不复位的锁存标志，
- * 导致思澈一直显示"已回应"，即使 ESP32 早已失联——现在改为会过期。 */
+ * 导致地面站一直显示"已回应"，即使 ESP32 早已失联——现在改为会过期。 */
 #define ESP_ACK_HOLD 600          /* 600 tick × 5 ms ≈ 3 秒内算"ESP32 在线" */
 static unsigned long probe_reply_count;   /* 已回复的链路探测次数（箭载端开关打开时才用） */
 static unsigned int link_tick;
@@ -462,9 +462,9 @@ static void lora_apply_json(flight_t *f, const char *line)
     if (json_float(line, "t", &value) == 0) f->temperature = value;
     if (json_float(line, "P", &value) == 0) f->pressure = value * 1000.0f;
     if (json_float(line, "v", &value) == 0) { f->v = value; valid = 1; }
-    /* 箭载端自报的链路状态（它自己有没有收到思澈的回包）。
+    /* 箭载端自报的链路状态（它自己有没有收到P4 的回包）。
      *   1 = 箭载已确认双向通  0 = 箭载确认断开  -1 = 箭载开机宽限中（未定论）
-     * 思澈据此区分"本端收不到箭载"与"箭载收不到本端"。 */
+     * 地面站据此区分"本端收不到箭载"与"箭载收不到本端"。 */
     if (json_float(line, "L", &value) == 0)
         f->rocket_link = (value > 0.5f) ? 1 : ((value < -0.5f) ? -1 : 0);
     if (json_str(line, "T", f->time_str, sizeof(f->time_str)) == 0) valid = 1;
@@ -484,8 +484,8 @@ static void lora_apply_json(flight_t *f, const char *line)
     }
 }
 
-/* ===== 思澈侧卫星模块（UART3 = /dev/ttyS1）=====
- * 只在本机读取与计算，所有相对距离/方位都在思澈算好后
+/* ===== 地面站侧卫星模块（UART3 = /dev/ttyS1）=====
+ * 只在本机读取与计算，所有相对距离/方位都在地面站算好后
  * 随原有网页 JSON 输出，不占用 LoRa 带宽、不影响遥测速率。
  */
 static int gps_fd = -1;
@@ -495,7 +495,7 @@ static double own_lat, own_lon, own_alt;
 static int own_fix, own_sat;
 static char own_time[12] = "--:--:--";
 
-/* 雷达结果：思澈实时计算 */
+/* 雷达结果：地面站实时计算 */
 static float rel_dist_m;      /* 直线距离 */
 static float rel_ground_m;    /* 地面投影距离（水平距离） */
 static float rel_alt_m;       /* 相对高度（火箭 - 地面站） */
@@ -622,7 +622,7 @@ static int gps_apply_baud(int fd, unsigned int baud)
 }
 
 static int own_manual;   /* 1 = 手动/网页设过，自动校准不再覆盖 */
-static int own_sat_ok;   /* 1 = 思澈侧卫星模块已给出有效定位 */
+static int own_sat_ok;   /* 1 = 地面站侧卫星模块已给出有效定位 */
 /* 雷达页“校准地基”按钮区域（触摸命中用） */
 static int radar_btn_x = -1, radar_btn_y, radar_btn_w, radar_btn_h;
 
@@ -741,7 +741,7 @@ static void ground_set_from_rocket(flight_t *f)
     printf("GS calib %.6f %.6f\n", own_lat, own_lon);
 }
 
-/* 相对位置：地基(思澈)为原点，正北为上；纯本地计算，实时刷新 */
+/* 相对位置：地基(地面站)为原点，正北为上；纯本地计算，实时刷新 */
 static void rel_update(flight_t *f)
 {
     float dlat, dlon, la1, la2, dphi, dlmb, a, c;
@@ -779,7 +779,7 @@ static void rel_update(flight_t *f)
     rel_valid = 1;
 }
 
-/* ===== 网页 JSON：在融合计算之后输出，保证网页拿到思澈算好的高度/速度 ===== */
+/* ===== 网页 JSON：在融合计算之后输出，保证网页拿到地面站算好的高度/速度 ===== */
 static void send_web_json(flight_t *f)
 {
     if (!telemetry_live) return;
@@ -790,7 +790,7 @@ static void send_web_json(flight_t *f)
            mission_phase, mission_file_id, esp_ack_ms ? esp_ack : "",
            f->temperature, f->pressure, f->time_str);
 
-    /* 雷达数据：思澈本地算好的相对位置，随原 JSON 一起输出，不占 LoRa */
+    /* 雷达数据：地面站本地算好的相对位置，随原 JSON 一起输出，不占 LoRa */
     /* 经纬度输出 7 位小数（约 1cm），避免发给网页时再被截断 */
     printf("{\"gs_rx\":%lu,\"gs_nmea\":%lu,"
            "\"gs_lat\":%.7f,\"gs_lon\":%.7f,\"gs_alt\":%.1f,\"gs_fix\":%d,\"gs_sat\":%d,"
@@ -873,7 +873,7 @@ static void lora_poll(flight_t *f)
                          * ESP32 发探测包时正好处于它那 1 秒纯接收窗口内，
                          * 所以这 4 字节回包既不会与遥测发射冲突，也不占用
                          * 遥测带宽（每 2 秒上行 3 B + 下行 4 B）。
-                         * 这是 ESP32 判断"思澈还在不在"的唯一可靠依据。 */
+                         * 这是 ESP32 判断"地面站还在不在"的唯一可靠依据。 */
                         if (lora_fd >= 0)
                         {
                             /* 回包必须够长。实测 4 字节的 "P:1" 回程丢失率很高：
@@ -922,7 +922,7 @@ static int cmd_priority_wait_ticks;
 static char pcmd_q[PCMD_QN][32];   /* 待发的优先级命令队列 */
 static int pcmd_qn;                /* 队列里条数 */
 
-/* ESP32 每 2 秒留 1 秒纯接收窗口；窗口里它不发遥测，思澈这边就会出现约 1 秒的
+/* ESP32 每 2 秒留 1 秒纯接收窗口；窗口里它不发遥测，地面站这边就会出现约 1 秒的
  * 遥测空档。把命令重发对齐到这个空档，能明显提高一次命中率 ——
  * 字节数完全不变，只是发得更"准"。
  * 配合箭载端"接收窗口内不写 SD 卡"的改动：写卡一次阻塞 200~500ms，
@@ -1159,7 +1159,7 @@ static void handle_buttons(flight_t *f)
     }
 }
 
-/* ===== 思澈端速度/高度融合 ===== */
+/* ===== 地面端速度/高度融合 ===== */
 static void fusion_update(flight_t *f)
 {
     /* 未点火：不积分，基线直接跟随 ESP32 下发的气压高度/GPS 速度，
@@ -1462,7 +1462,7 @@ static void draw_page_sat(flight_t *f)
     text_scale(SAFE_X + SAFE_W / 2 + 14, y + 20, buf, C_CYAN, 2);
     y += 48;
 
-    /* 坐标：地基（思澈卫星）与火箭（ESP32），第一页底部实时显示 */
+    /* 坐标：地基（地面站卫星）与火箭（ESP32），第一页底部实时显示 */
     fill_round_rect(SAFE_X, y, SAFE_W, 58, 6, C_DARKER);
     fill_rect(SAFE_X, y, 4, 58, C_SKYBLUE);
     text_cn(SAFE_X + 10, y + 4, "坐标", C_LABEL, 1);
@@ -2013,9 +2013,9 @@ static void draw_page_curves(flight_t *f)
 }
 
 /* ===== Page 5: 雷达页 =====
- * 以思澈（地基站）为中心，正北为上，多个带距离刻度的同心圆盘，
+ * 以地面站（地基站）为中心，正北为上，多个带距离刻度的同心圆盘，
  * 圆盘上显示火箭（ESP32）位置；右侧简单列出坐标/高度/地面投影距离。
- * 所有数值都是思澈本地实时计算，不经 LoRa 回传。
+ * 所有数值都是地面站本地实时计算，不经 LoRa 回传。
  */
 static void draw_page_radar(flight_t *f)
 {
@@ -2191,7 +2191,7 @@ int main(int argc, char *argv[])
         ax_hist[i] = 0; ay_hist[i] = 0; az_hist[i] = 1.0f;
     }
 
-    /* 开机链路自检：思澈 → ESP32 → 回执，确认按键命令通道可用 */
+    /* 开机链路自检：地面站 → ESP32 → 回执，确认按键命令通道可用 */
     send_sd_cmd("S:PING");
     printf("LINK self-test sent\n");
     while (1)
@@ -2208,7 +2208,7 @@ int main(int argc, char *argv[])
             fl.temperature = 0;
         }
         lora_poll(&fl);
-        gps_poll();          /* 思澈侧卫星模块（UART3），本地解析 */
+        gps_poll();          /* 地面站侧卫星模块（UART3），本地解析 */
         if (!own_manual && !own_sat_ok) ground_autoset(&fl);  /* 待命时用箭载坐标当发射点 */
         rel_update(&fl);     /* 本地实时计算相对距离/方位/高度差 */
         cmd_tick();          /* 命令重发队列（非阻塞） */
@@ -2226,7 +2226,7 @@ int main(int argc, char *argv[])
         lora_silence_ticks++;
         if (esp_ack_ms > 0) esp_ack_ms--;   /* 命令回执新鲜度倒计时，过期即为失联 */
 
-        /* 命令通道心跳：只在没有命令在重发时才发，避免思澈自己一直发射
+        /* 命令通道心跳：只在没有命令在重发时才发，避免地面站自己一直发射
          * 把接收遥测的窗口也堵掉。
          * 链路存活判定现在由 ESP32 每 2 秒的 P? 探测负责，这里只在
          * 6 秒没听到 ESP32 时才补发一次 PING 做兜底，因此比原来更省带宽。 */
@@ -2241,7 +2241,7 @@ int main(int argc, char *argv[])
             }
         }
 
-        /* 约每 150ms 输出一次网页 JSON（含思澈端融合结果与任务阶段） */
+        /* 约每 150ms 输出一次网页 JSON（含地面端融合结果与任务阶段） */
         if (telemetry_live && (draw_tick % 30) == 0)
             send_web_json(&fl);
         if (lora_silence_ticks > 150)

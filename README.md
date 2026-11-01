@@ -6,8 +6,8 @@
 
 本作品是一套**自研探空火箭的两端遥测系统**：箭载端用 **ESP32-S3**（MicroPython）
 采集 GPS、气压温度、六轴姿态、并写入 MicroSD 卡；数据经 **LoRa** 下传到地面端；
-地面端用 **思澈 SF32LB52（openvela / NuttX）** 驱动 390×450 AMOLED 屏，
-实时显示定位、时间、姿态、速度、高度与六页曲线，并用触摸翻页、按键发令、
+地面端用 **ESP32-P4X（openvela / NuttX）** 驱动 1024×600 MIPI-DSI 触摸屏，
+实时显示定位、时间、姿态、速度、高度与五页视图，并用触摸翻页、按键发令、
 蜂鸣器回执，同时把遥测数据推送到浏览器里的网页遥测大屏。
 
 **要解决的问题**：探空火箭在发射到回收的几分钟里，需要一份**不丢包、可回放**的
@@ -35,9 +35,10 @@
 
 ```text
 contest2026_465_chuangkonghangtian/
-├── app/chuangkong_ground_station/   地面站应用（思澈 SF32LB52 / openvela）
+├── app/p4x_gs/                      ★ 地面站应用（ESP32-P4X / openvela，当前在用）
+├── app/chuangkong_ground_station/   上一代地面站（思澈 SF32LB52，历史保留）
 │   ├── ground_station.c               应用主体：LoRa 收发 / NMEA 解析 / 姿态高度解算 /
-│   │                                  六页 AMOLED 界面 / 触摸翻页 / 按键状态机 / 蜂鸣器
+│   │                                  五页 MIPI-DSI 界面 / 触摸翻页 / 按键状态机 / 蜂鸣器
 │   ├── cn_font.h                      中文点阵字库
 │   └── CMakeLists.txt / Makefile / Make.defs / Kconfig   应用打包文件
 ├── board/contest_board/             板级适配
@@ -78,7 +79,7 @@ repo sync -c -j8
 `app/` 与 `board/` 会按 manifest 里的 `<linkfile>` 软链到
 `packages/demos/` 与 `vendor/openvela/boards/` 对应位置。
 
-### 4.2 编译与烧录地面站（思澈 SF32LB52）
+### 4.2 编译与烧录地面站（ESP32-P4X）
 
 实测环境为 WSL + Sifli SF32LB52 开发板（外接 LCM 适配板）：
 

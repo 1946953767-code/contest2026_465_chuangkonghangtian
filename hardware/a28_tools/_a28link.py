@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-"""A28 链路决定性测试：同时监视 ESP32(COM7) 与 思澈(COM9)。
-判据：ESP32 cmd 递增 = 思澈->ESP32 通；思澈出现 JSON/ESP32 ACK = ESP32->思澈 通。"""
+"""A28 链路决定性测试：同时监视 ESP32(COM7) 与 地面站(COM9)。
+判据：ESP32 cmd 递增 = 地面站->ESP32 通；地面站出现 JSON/ESP32 ACK = ESP32->地面站 通。"""
 import serial, time, sys, re
 sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
@@ -10,7 +10,7 @@ DUR = int(sys.argv[1]) if len(sys.argv) > 1 else 80
 esp = serial.Serial('COM7', 115200, timeout=0.2)
 esp.setDTR(False); esp.setRTS(False); time.sleep(0.2); esp.reset_input_buffer()
 
-# --- 复位思澈：RTS 脉冲，然后必须放开否则 SoC 被按住 ---
+# --- 复位地面站：RTS 脉冲，然后必须放开否则 SoC 被按住 ---
 sf = serial.Serial('COM9', 1000000, timeout=0.2)
 sf.setDTR(False); sf.setRTS(False); time.sleep(0.2)
 sf.setRTS(True); time.sleep(0.25); sf.setRTS(False)
@@ -31,7 +31,7 @@ while time.time() - t0 < DUR:
         sb += d
         for ln in d.decode('utf-8', 'replace').splitlines():
             if ln.strip():
-                print("[思澈 ] " + ln.strip()[:160], flush=True)
+                print("[地面站 ] " + ln.strip()[:160], flush=True)
     time.sleep(0.02)
 esp.close(); sf.close()
 
@@ -41,30 +41,30 @@ st = sb.decode('utf-8', 'replace')
 print("\n================ 判定 ================", flush=True)
 m = re.findall(r'cmd=(\d+)', et)
 if m:
-    print("ESP32 cmd: %s .. %s  -> 思澈->ESP32 %s" % (m[0], m[-1], "通 ✅" if int(m[-1]) > 0 else "断 ❌"))
+    print("ESP32 cmd: %s .. %s  -> 地面站->ESP32 %s" % (m[0], m[-1], "通 ✅" if int(m[-1]) > 0 else "断 ❌"))
 else:
-    print("ESP32 未打印 cmd= -> 思澈->ESP32 断 ❌")
+    print("ESP32 未打印 cmd= -> 地面站->ESP32 断 ❌")
 
 tx = re.findall(r'tx=(\d+)', et)
 if tx: print("ESP32 tx 计数: %s .. %s" % (tx[0], tx[-1]))
 
 njson = len(re.findall(r'\{"p":', st))
 nack = len(re.findall(r'ESP32 ACK', st))
-print("思澈收到 JSON 帧: %d   ESP32 ACK: %d" % (njson, nack))
-print("ESP32->思澈 %s" % ("通 ✅✅✅" if (njson or nack) else "断 ❌"))
+print("地面站收到 JSON 帧: %d   ESP32 ACK: %d" % (njson, nack))
+print("ESP32->地面站 %s" % ("通 ✅✅✅" if (njson or nack) else "断 ❌"))
 
-# 思澈是否认出 LoRa 串口
+# 地面站是否认出 LoRa 串口
 for kw in ('LoRa UART2', 'lora', 'LoRa'):
     for ln in st.splitlines():
         if kw in ln:
-            print("思澈日志: " + ln.strip()[:140]); break
+            print("地面站日志: " + ln.strip()[:140]); break
     else:
         continue
     break
 
-# 思澈是否有任何"疑似空中数据"的字符（非日志行）
+# 地面站是否有任何"疑似空中数据"的字符（非日志行）
 odd = [l for l in st.splitlines() if re.search(r'[{}]', l) and 'pid' not in l]
-print("思澈含花括号的行数: %d" % len(odd))
+print("地面站含花括号的行数: %d" % len(odd))
 for l in odd[:5]:
     print("   > " + l.strip()[:140])
 print("======================================", flush=True)

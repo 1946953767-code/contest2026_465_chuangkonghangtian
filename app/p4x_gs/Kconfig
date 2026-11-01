@@ -1,0 +1,35 @@
+#
+# For a description of the syntax of this configuration file,
+# see the file kconfig-language.txt in the NuttX tools repository.
+#
+
+config EXAMPLES_P4X_GS
+	tristate "P4X rocket telemetry ground station UI"
+	default n
+	depends on VIDEO_FB
+	---help---
+		Five-page rocket telemetry ground station UI for the ESP32-P4X
+		Function EV Board 7-inch MIPI-DSI panel (1024x600 RGB565).
+
+		Pages: status overview (2x2 charts), curves, big speed, rocket
+		attitude, radar.  Page turning with console keys, touch swipe
+		(when /dev/input0 is present) and an idle auto-advance.
+
+if EXAMPLES_P4X_GS
+
+config EXAMPLES_P4X_GS_PROGNAME
+	string "Program name"
+	default "p4x_gs"
+	---help---
+		The name of the program that will be used when the NSH ELF program
+		is installed.
+
+config EXAMPLES_P4X_GS_PRIORITY
+	int "Task priority"
+	default 100
+
+config EXAMPLES_P4X_GS_STACKSIZE
+	int "Stack size"
+	default 8192
+
+endif

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""A28 链路质量量化：同时抓 ESP32 发送计数与思澈接收计数，算吞吐/丢包。"""
+"""A28 链路质量量化：同时抓 ESP32 发送计数与地面站接收计数，算吞吐/丢包。"""
 import serial, time, sys, re
 sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
@@ -57,14 +57,14 @@ if scmd:
 if len(samples) >= 2:
     a, b = samples[0], samples[-1]
     dpk = b[1]-a[1]; dt = b[0]-a[0]
-    print("思澈 收包     : %d -> %d   共 %d 包，%.2f 包/秒" % (a[1], b[1], dpk, dpk/dt if dt else 0))
+    print("地面站 收包     : %d -> %d   共 %d 包，%.2f 包/秒" % (a[1], b[1], dpk, dpk/dt if dt else 0))
     if stx:
         sent = stx[-1]-stx[0]
         print("→ 丢包率      : %.1f%%  (发 %d / 收 %d)" % (max(0, (sent-dpk))*100.0/max(1,sent), sent, dpk))
-    print("思澈 probe_reply: %d -> %d    rocket_link: %d -> %d" % (a[2], b[2], a[3], b[3]))
+    print("地面站 probe_reply: %d -> %d    rocket_link: %d -> %d" % (a[2], b[2], a[3], b[3]))
 
 njson = len(re.findall(r'\{"t":', st))
-print("思澈收到遥测 JSON 行: %d" % njson)
+print("地面站收到遥测 JSON 行: %d" % njson)
 nack = len(re.findall(r'ESP32 ACK', st))
-print("思澈收到 ESP32 ACK  : %d" % nack)
+print("地面站收到 ESP32 ACK  : %d" % nack)
 print("==========================================")
