@@ -292,7 +292,16 @@ async function readLoop() {
           while ((idx = buf.indexOf('\n')) >= 0) {
             const line = buf.slice(0, idx).trim();
             buf = buf.slice(idx + 1);
-            if (line.startsWith('{')) { try { parseJSON(line); } catch(e){} }
+            // P4X-ANYJSON：JSON 不一定在行首 —— 板子上的 app 是直接写
+            // /dev/console 的，NSH 提示符会跟它粘在同一行（"nsh> {...}"）。
+            // 所以这里把行内所有完整的 {...} 段都抠出来解析，而不是只看行首。
+            if (line.indexOf('{') >= 0) {
+              const re = /\{[^{}]*\}/g;
+              let m;
+              while ((m = re.exec(line)) !== null) {
+                try { parseJSON(m[0]); } catch(e) {}
+              }
+            }
           }
         }
       } catch(e) {
