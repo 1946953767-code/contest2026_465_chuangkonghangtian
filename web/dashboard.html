@@ -255,7 +255,7 @@ let reconnectTimer = null;
 let lastPacketMs = 0;
 let frozenSince = 0;      // P4X-FREEZE：断开时刻，用于显示"最后一帧"提示
 let lastRadarMs = 0;
-// 思澈端融合速度（无卫星时加速度拟合，有卫星时与 GPS 融合）
+// ESP32-P4 端融合速度（无卫星时加速度拟合，有卫星时与 GPS 融合）
 let fusedVel = 0;
 let fusedAlt = 0;
 let lastPktMs = 0;
@@ -273,7 +273,7 @@ async function connect() {
     // 原来这里写的是 1000000：CDC 虚拟串口无所谓，但走串口桥时会全是乱码，
     // 表现就是"连上了但一条数据都解析不出来"。
     await port.open({ baudRate: 115200, flowControl: 'none' });
-    // 关键：降低 RTS/DTR，否则会把思澈 SoC 保持在复位状态，
+    // 关键：降低 RTS/DTR，否则会把 P4 SoC 保持在复位状态，
     // 导致 LCD 面板初始化失败（屏幕不亮 / ERR fb0）。
     try { await port.setSignals({ dataTerminalReady: false, requestToSend: false }); } catch(e) {}
     connected = true;
@@ -365,7 +365,7 @@ async function readLoop() {
   }
 }
 
-// ---- 雷达数据（思澈本地算好，随 JSON 一起发来）----
+// ---- 雷达数据（P4 本地算好，随 JSON 一起发来）----
 let radar = { gs_rx:0, gs_nmea:0, gs_lat:0, gs_lon:0, gs_alt:0, gs_fix:0, gs_sat:0,
               rocket_lat:0, rocket_lon:0, dist:0, gdist:0, dalt:0, bearing:0,
               radar:0, gtime:'--:--:--' };
@@ -421,7 +421,7 @@ function parseJSON(line) {
            q:(d.q===undefined?'':String(d.q)),
            phase:d.phase||0,
            lora:(d.lora===undefined?1:d.lora), temp:d.temp||0, press:d.press||0,
-           // rlink：箭载端自报"它能不能收到思澈的回包"（1=通 0=断 -1/undefined=未知）
+           // rlink：箭载端自报"它能不能收到地面端的回包"（1=通 0=断 -1/undefined=未知）
            // 波形上用不到，但对判断单向故障很关键
            rlink:(d.rlink===undefined?-1:d.rlink), probe:d.probe||0,
            la:(d.la===undefined?null:d.la), lo:(d.lo===undefined?null:d.lo),
@@ -861,7 +861,7 @@ function drawAttitude() {
 
 // ---- 雷达扫描图：同心距离圆盘 + 扫描线 + 火箭坐标点 + 悬停详情 ----
 let sweepAngle = 0;
-// ---- 本机相对位置计算（不依赖思澈，避免任何串口写操作）----
+// ---- 本机相对位置计算（不依赖 P4，避免任何串口写操作）----
 function havDist(la1, lo1, la2, lo2) {
   const R = 6371000, d2r = Math.PI / 180;
   const dLa = (la2 - la1) * d2r, dLo = (lo2 - lo1) * d2r;
@@ -878,9 +878,12 @@ function calcBearing(la1, lo1, la2, lo2) {
   return b < 0 ? b + 360 : b;
 }
 
-// 有效雷达数据：优先本机基准，否则用思澈算好的
+// 有效雷达数据：优先本机基准，否则用 P4 算好的
 function effRadar() {
-  const rkLa = radar.rocket_lat, rkLo = radar.rocket_lon;
+  // P4X-RADAR2：我们的固件把坐标放在 data.la/lo，老代码只认 radar.rocket_*，
+  // 结果雷达永远是"无基准"。这里加兜底，两条来源都认。
+  const rkLa = radar.rocket_lat || (data && data.la);
+  const rkLo = radar.rocket_lon || (data && data.lo);
   if (localGround && (rkLa || rkLo)) {
     const g = havDist(localGround[0], localGround[1], rkLa, rkLo);
     const al = (data.alt || 0) - (localGround[2] || 0);
@@ -1006,7 +1009,7 @@ function drawRadar() {
     g.fillText('火箭方位', cx, cy + R + 42 * S);
     g.fillStyle = '#7fb6d6';
     g.font = (12 * S) + 'px Consolas,monospace';
-    g.fillText(data.gpsFix ? '等待思澈校准地基…' : '等待箭载 GPS 定位…', cx, cy + R + 62 * S);
+    g.fillText(data.gpsFix ? '等待 P4 校准地基…' : '等待箭载 GPS 定位…', cx, cy + R + 62 * S);
   }
 
   // 悬停详情框
@@ -1059,7 +1062,7 @@ function bindRadarHover() {
   cv.addEventListener('mouseleave', () => { radarHoverHover = false; });
 }
 
-// ---- 地基坐标：手动输入或读取本机定位，下发给思澈 ----
+// ---- 地基坐标：手动输入或读取本机定位（仅网页雷达使用）----
 async function sendGround() {
   const msg = document.getElementById('gsMsg');
   const lat = document.getElementById('inLat').value.trim();
@@ -1084,7 +1087,7 @@ function fillGroundInputs(lat, lon, alt) {
 }
 
 /* 地基坐标只在本机计算，绝不往串口写任何数据。
- * 原因：思澈程序若读控制台会和 NSH 争抢 stdin 导致死锁卡死，
+ * 原因：P4 的 p4x_gs 若读控制台会和 NSH 争抢 stdin 导致死锁卡死，
  * 所以网页对串口保持「只读」，避免一切写操作。 */
 let localGround = null;   // [lat, lon, alt] 本机基准，优先级最高
 
@@ -1092,7 +1095,7 @@ async function pushGround(lat, lon, alt) {
   const msg = document.getElementById('gsMsg');
   localGround = [Number(lat), Number(lon), Number(alt) || 0];
   msg.textContent = '本机雷达基准已更新：' + localGround[0].toFixed(7) + ', ' + localGround[1].toFixed(7) +
-                    '（仅网页显示，不动思澈）';
+                    '（仅网页雷达使用，不改 P4）';
   msg.style.color = '#00ff88';
   return true;
 }
@@ -1172,7 +1175,7 @@ async function useGeoLocation() {
       fillGroundInputs(la, lo, al);
       localStorage.setItem('dsh.gs',
         la.toFixed(7) + ',' + lo.toFixed(7) + ',' + (al === null ? 0 : al).toFixed(1));
-      msg.textContent = '已获取定位（精度 ±' + Math.round(pos.coords.accuracy) + 'm），请点「下发到思澈」';
+      msg.textContent = '已获取定位（精度 ±' + Math.round(pos.coords.accuracy) + 'm），点「设为雷达基准」生效';
       msg.style.color = '#00ff88';
     },
     err => { msg.textContent = '定位失败：' + err.message; msg.style.color = '#ff4444'; },
