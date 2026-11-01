@@ -781,24 +781,42 @@ function drawAttitude() {
   g.fill();
   g.restore();
 
-  // ---- 固定机体符号 ----
-  g.strokeStyle = '#ffb020';
-  g.lineWidth = 5;
-  g.lineCap = 'round';
-  g.beginPath();
-  g.moveTo(cx - hw * 0.45, cy);
-  g.lineTo(cx - hw * 0.13, cy);
-  g.moveTo(cx + hw * 0.13, cy);
-  g.lineTo(cx + hw * 0.45, cy);
-  g.stroke();
-  g.beginPath();
-  g.moveTo(cx, cy - 6);
-  g.lineTo(cx, cy + 6);
-  g.stroke();
-  g.fillStyle = '#ffb020';
-  g.beginPath();
-  g.arc(cx, cy, 3.5, 0, Math.PI * 2);
-  g.fill();
+  // ---- 中心固定：小箭体（保留原来的造型，放大一点）----
+  (function drawRocket() {
+    const bw = Math.max(10, hw * 0.055);      // 箭体半宽
+    const bh = Math.max(26, hh * 0.16);       // 箭体半高
+    // 箭体
+    g.fillStyle = '#ff8c00';
+    g.fillRect(cx - bw, cy - bh, bw * 2, bh * 2);
+    // 机头（朝上）
+    g.fillStyle = '#ff3333';
+    g.beginPath();
+    g.moveTo(cx - bw, cy - bh);
+    g.lineTo(cx, cy - bh - bw * 1.6);
+    g.lineTo(cx + bw, cy - bh);
+    g.closePath();
+    g.fill();
+    // 尾翼
+    g.beginPath();
+    g.moveTo(cx - bw, cy + bh);
+    g.lineTo(cx - bw * 2.2, cy + bh * 1.5);
+    g.lineTo(cx - bw, cy + bh * 0.55);
+    g.closePath();
+    g.fill();
+    g.beginPath();
+    g.moveTo(cx + bw, cy + bh);
+    g.lineTo(cx + bw * 2.2, cy + bh * 1.5);
+    g.lineTo(cx + bw, cy + bh * 0.55);
+    g.closePath();
+    g.fill();
+    // 中心参考十字（很细，不抢箭体）
+    g.strokeStyle = 'rgba(255,255,255,0.75)';
+    g.lineWidth = 1.5;
+    g.beginPath();
+    g.moveTo(cx - hw * 0.16, cy); g.lineTo(cx - bw * 1.4, cy);
+    g.moveTo(cx + bw * 1.4, cy);  g.lineTo(cx + hw * 0.16, cy);
+    g.stroke();
+  })();
 
   g.restore();   // 解除方形裁剪
 
