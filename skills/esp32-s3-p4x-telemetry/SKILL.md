@@ -9,8 +9,6 @@ description: 箭载 ESP32-S3(MicroPython) + 地面 ESP32-P4X(openvela/NuttX) 双
 地面：**ESP32-P4X + openvela(NuttX)**，1024×600 MIPI-DSI 触摸屏，应用 `p4x_gs`。
 链路：LoRa A28，9600 8N1，短键 JSON，full 帧 175 B @2 Hz、quick 帧 26 B @4–10 Hz。
 
-> 上一代地面站是思澈 SF32LB52（390×450 AMOLED），代码保留在 `app/chuangkong_ground_station/` 作演进记录，**不再参与构建**。
-
 ## 1. 端口与环境
 
 | 设备 | 串口 | 参数 |

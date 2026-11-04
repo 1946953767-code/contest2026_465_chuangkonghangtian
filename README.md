@@ -35,21 +35,17 @@
 
 ```text
 contest2026_465_chuangkonghangtian/
-├── app/p4x_gs/                      ★ 地面站应用（ESP32-P4X / openvela，当前在用）
-├── app/chuangkong_ground_station/   上一代地面站（思澈 SF32LB52，历史保留）
-│   ├── ground_station.c               应用主体：LoRa 收发 / NMEA 解析 / 姿态高度解算 /
-│   │                                  五页 MIPI-DSI 界面 / 触摸翻页 / 按键状态机 / 蜂鸣器
+├── app/p4x_gs/                      地面站应用（ESP32-P4X / openvela）
+│   ├── p4x_gs_main.c                  应用主体：LoRa 收发 / JSON 解析 / 姿态高度解算 /
+│   │                                  五页 MIPI-DSI 界面 / 触摸翻页 / 阶段状态机 / 网页回显
 │   ├── cn_font.h                      中文点阵字库
 │   └── CMakeLists.txt / Makefile / Make.defs / Kconfig   应用打包文件
-├── board/contest_board/             板级适配
-│   ├── Kconfig / configs / src/       组委会脚手架骨架（保留）
-│   └── delta/                       ★ 本作品的板级改动（相对 vendor/sifli 出厂板级）
-│       ├── bsp_pinmux.c               引脚复用：LoRa(UART2 PA20/PA27)、修好被注释的 KEY1(PA34)、TF 卡、触摸
-│       ├── sf32lb52_buttons.c         /dev/buttons 按键驱动（扩展为双键）
-│       ├── sifli_ap.c                 LCD 面板上电与 framebuffer 初始化重试
-│       ├── sifli_bitbang_i2c.c        触摸 FT6146 的 bit-bang I2C
-│       ├── defconfig                  本作品的 NuttX 配置（实测烧录用）
-│       └── rcS                        开机自启动脚本
+├── board/esp32p4x/                  板级支持（openvela 板级源码）
+│   ├── board_bringup.c                上电时序、控制台、任务拉起
+│   ├── board_display.c / board_panel.c   MIPI-DSI 面板初始化与点亮
+│   ├── board_touch.c                  FT 触摸驱动 + 背光
+│   ├── board_lora.c                   A28 串口收发
+│   └── board_gpio.c / board_pins.h    引脚表与 GPIO
 ├── hardware/esp32/                  箭载端 ESP32-S3（MicroPython）
 │   ├── main.py                        离线自启动入口
 │   ├── central_tx.py                  主程序：多任务采集 / LoRa 收发 / 蜂鸣器 / RGB / SD 记录
@@ -85,9 +81,9 @@ repo sync -c -j8
 
 ```bash
 cd <openvela 工作区>
-cp contest2026_465_chuangkonghangtian/app/chuangkong_ground_station/ground_station.c \
+cp contest2026_465_chuangkonghangtian/app/p4x_gs/p4x_gs_main.c \
    apps/examples/uart2hwtest/uart2hwtest.c
-cp contest2026_465_chuangkonghangtian/app/chuangkong_ground_station/cn_font.h \
+cp contest2026_465_chuangkonghangtian/app/p4x_gs/cn_font.h \
    apps/examples/uart2hwtest/cn_font.h
 
 cmake --build cmake_out/sf32lb52_devkit_lcd
