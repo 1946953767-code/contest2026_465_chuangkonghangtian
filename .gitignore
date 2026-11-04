@@ -24,3 +24,7 @@ __pycache__/
 .idea/
 Thumbs.db
 desktop.ini
+
+# 本地调试产物
+web/_shot.html
+docs/deck_check/
