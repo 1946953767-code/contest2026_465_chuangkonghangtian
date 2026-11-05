@@ -46,6 +46,7 @@ contest2026_465_chuangkonghangtian/
 │   ├── board_touch.c                  FT 触摸驱动 + 背光
 │   ├── board_lora.c                   A28 串口收发
 │   └── board_gpio.c / board_pins.h    引脚表与 GPIO
+├── hardware/pcb/                    箭载端 PCB 工程（嘉立创 EDA 专业版，主板 + 传感器扩展板）
 ├── hardware/esp32/                  箭载端 ESP32-S3（MicroPython）
 │   ├── main.py                        离线自启动入口
 │   ├── central_tx.py                  主程序：多任务采集 / LoRa 收发 / 蜂鸣器 / RGB / SD 记录
