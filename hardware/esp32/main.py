@@ -6,9 +6,9 @@ import time
 print("offline telemetry boot")
 gc.collect()
 time.sleep_ms(300)
+
 try:
     import central_tx
     central_tx.main()
 except Exception as e:
     print("central_tx stopped:", e)
-    raise

@@ -1,12 +1,12 @@
 from machine import Pin, PWM
 import time
 
-# 无源蜂鸣器：S 接 GPIO35，- 接 GND
+# 无源蜂鸣器：F+ 接 IO17（原理图第 10 脚），F- 接 GND
 # ★ 2026-10 修正：曾一度把这里改成 13，但**实际接线一直在 35**，
 #   改代码没改线 => 蜂鸣器全程静音。现按实际接线改回 35。
 #   （GPIO33~37 是 S3 八线 PSRAM 的脚，但本板 PSRAM 初始化失败
 #    并已 bail out，所以 35 可以正常当普通 GPIO 用。）
-BUZZER_PIN = 35
+BUZZER_PIN = 17
 POWER_PIN = None
 
 _power = None
